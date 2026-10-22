@@ -33,6 +33,8 @@
 
 ### Decisiones vigentes
 
+- [x] Preparar publicación pública en GitHub: revisar historial y archivos para excluir credenciales, `.env`, datos, respaldos y dependencias locales; verificar sintaxis y 37 pruebas. Incluir el estado actual del taller de seis fases AI-DSE.
+
 - [x] Corregir METHOD_NOT_ALLOWED al borrar equipos/integrantes: el proceso local seguía ejecutando una versión anterior sin team-admin. Reiniciar con `npm run dev` para recargar cambios del servidor automáticamente. 33 pruebas aprobadas, incluida eliminación, revocación de accesos y liberación de nombre; sin borrar datos actuales para verificar.
 
 - [x] Proyector: sustituir las tarjetas grandes de fases por indicador horizontal compacto a la derecha (cinco círculos conectados y nombres). Resaltar fase actual y distinguir las anteriores, con actualización automática; conservar la modal de revisión superpuesta.

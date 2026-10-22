@@ -3,6 +3,7 @@ import { setupParticipantNav } from '/packages/ui/participant-nav.mjs';
 import { PHASES, MAX_ITERATIONS, STAGE_LABELS, LOOP_FROM, LOOP_TO } from '/packages/shared/phases.mjs';
 import { DELIVERABLE_STATUS } from '/packages/shared/projects.mjs';
 import { workshopActivity, readActivityForm, FIELD_LABELS } from '/packages/ui/workshop.mjs';
+import { PRODUCTION_URL, productionQr } from '/packages/ui/qr.mjs';
 const view = document.body.dataset.view;
 const app = document.querySelector('#app');
 const notice = document.querySelector('#notice');
@@ -115,9 +116,10 @@ function login() {
   setConnection('Sin conectar');
   if (view === 'presenter') { document.body.dataset.screen = 'login'; studioMenuOpen = false; studioEvents = []; }
   if (view === 'participant') { document.body.dataset.screen = 'login'; participantTab = 'activities'; document.dispatchEvent(new CustomEvent('participant:screen',{detail:'login'})); }
-  const form = view === 'presenter' ? `<label>Grupo<select name="sessionId"><option value="tarde">14:00–16:00 · Colombia</option><option value="noche">18:00–20:00 · Colombia</option></select></label><label>Contraseña del conferencista<input name="password" type="password" autocomplete="current-password" required minlength="24"></label>` : `<label>Código de sala<input name="code" autocomplete="off" required maxlength="40"></label><label>Nombre o seudónimo del equipo<input name="name" required maxlength="60" autocomplete="off"></label><p class="muted">Hasta seis integrantes por equipo. Conserva este navegador para recuperar tu acceso.</p>`;
+  const form = view === 'presenter' ? `<label>Grupo<select name="sessionId"><option value="tarde">14:00–16:00 · Colombia</option><option value="noche">18:00–20:00 · Colombia</option></select></label><label>Contraseña del conferencista<input name="password" type="password" autocomplete="current-password" required minlength="12"></label>` : `<label>Código de sala<input name="code" autocomplete="off" required maxlength="40"></label><label>Nombre o seudónimo del equipo<input name="name" required maxlength="60" autocomplete="off"></label><p class="muted">Hasta seis integrantes por equipo. Conserva este navegador para recuperar tu acceso.</p>`;
   app.innerHTML = `<h1>${view === 'presenter' ? 'Control Center' : view === 'projector' ? 'Pantalla de auditorio' : 'Tu primera app empieza con una idea.'}</h1><p>Un taller, seis fases AI-DSE. El conferencista marca el ritmo.</p><section class="card">${view === 'projector' ? '<p>Abre aquí el enlace privado generado desde Control Center, desde Studio.</p>' : `<form id="login">${form}<button>Ingresar</button></form>`}</section>`;
   if (view === 'participant') { app.innerHTML = participantLogin(); bindTeamSearch(); }
+  if (view === 'projector') app.innerHTML = projectorWelcome(null);
   app.querySelector('form')?.addEventListener('submit', async e => {
     e.preventDefault(); notice.textContent = '';
     const submit = e.target.querySelector('[type=submit], button');
@@ -233,7 +235,30 @@ function studioTeams(s) {
   return `<section class="studio-panel"><p class="panel-label">${phase ? `Fase ${phase.id} · ${esc(phase.title)}${iterationLabel(s)}` : 'Sesión sin iniciar'}</p><p>${phase ? `<strong>${s.summary.completed}/${s.summary.total}</strong> equipos entregaron en esta fase` : `${s.teams.length} equipos registrados`} · ${s.summary.participants} participantes · Código estadístico: <strong>${esc(s.statisticsCode)}</strong></p></section>
   <div class="team-grid">${teams.map(t => `<section class="studio-panel team-panel ${done(t)?'is-done':''}"><div class="team-head"><h2>${esc(t.name)}</h2><span class="badge team-members" title="Integrantes">${icon('teams')}${t.memberCount}/${t.maxMembers}</span><button class="admin-remove" data-remove-team="${esc(t.id)}" data-name="${esc(t.name)}" data-count="${t.memberCount}" title="Eliminar equipo" aria-label="Eliminar equipo ${esc(t.name)}" ${adminBusy||!online?'disabled':''}>${icon('trash')}</button></div>${phase?`<p class="team-phase-status">${done(t)?`${icon('check')}<span>${DELIVERABLE_STATUS[t.current?.status]} · ${esc(phase.title)}</span>`:`<span>${t.current?.status?DELIVERABLE_STATUS[t.current.status]:'Pendiente'} · ${esc(phase.title)}</span>`}</p>${t.current?.text?`<details class="team-deliverable"><summary>Ver entrega</summary><pre>${esc(t.current.text)}</pre>${t.current.review?.comment?`<p class="muted">Comentario: ${esc(t.current.review.comment)}</p>`:''}${['submitted','accepted','needs_review'].includes(t.current.status)?`<div class="actions"><button class="secondary" data-deliverable-review="ACCEPT" data-team="${esc(t.id)}" ${t.current.status==='accepted'||adminBusy||!online?'disabled':''}>Aceptar</button><button class="secondary" data-deliverable-review="REQUEST_CHANGES" data-team="${esc(t.id)}" ${t.current.status==='needs_review'||adminBusy||!online?'disabled':''}>Pedir revisión</button></div>`:''}</details>`:''}${t.legacy?'<p class="muted">Trabajo del modelo anterior pendiente de reconciliación.</p>':''}`:''}<ol class="team-progress" aria-label="Entregas por fase">${PHASES.map(p=>`<li class="${t.completed.includes(p.id)?'done':''} ${p.id===s.activePhase?'current':''}" title="${p.id}. ${esc(p.title)} · ${t.completed.includes(p.id)?'Entregada':'Pendiente'}">${p.id}</li>`).join('')}</ol><details><summary>Integrantes y roles</summary><ul class="member-list">${t.members.map(member=>`<li><div class="member-info"><strong>${esc(member.fullName || 'Pendiente de completar registro')}</strong><span>${esc(member.teamRole ?? 'Rol pendiente')}</span><small>${esc(member.email ?? '')}</small></div><button class="admin-remove" data-remove-member="${esc(member.id)}" data-name="${esc(member.fullName || 'Integrante sin registro completo')}" data-team="${esc(t.name)}" title="Quitar integrante" aria-label="Quitar a ${esc(member.fullName || 'integrante')} del equipo" ${adminBusy||!online?'disabled':''}>${icon('trash')}</button></li>`).join('')}</ul></details></section>`).join('') || '<section class="studio-panel"><p>Aún no hay equipos registrados.</p></section>'}</div>`;
 }
+// Bienvenida del auditorio antes de iniciar: registro guiado con QR a la URL de producción.
+function projectorWelcome(s) {
+  const host = PRODUCTION_URL.replace(/^https?:\/\//, '');
+  const schedule = s ? `${esc(s.title)} · ${s.id === 'tarde' ? '2:00–4:00 p. m.' : '6:00–8:00 p. m.'}` : '18 de noviembre de 2026 · Extensión Chía';
+  const steps = [['Escanea el código o entra a', `<strong>${esc(host)}</strong>`], ['Escribe tu nombre completo y', '<strong>tu correo institucional</strong>'], ['Únete a tu equipo o créalo:', '<strong>máximo seis integrantes</strong>'], ['Elige tu sesión y espera', '<strong>la señal del conferencista</strong>']];
+  return `<div class="pw-screen">
+  <section class="pw-intro">
+    <p class="pw-eyebrow">${icon('live')}<span>${schedule}</span></p>
+    <h1>Bienvenidos a<br><span class="pw-highlight">Crea tu primera APP con IA</span></h1>
+    <p class="pw-lead">Un taller práctico para descubrir, especificar, construir con IA simulada y verificar una app en equipo, con el modelo INGGEN AI-DSE.</p>
+    <ol class="pw-steps">${steps.map(([a, b], i) => `<li><span class="pw-step-number">${i + 1}</span><span>${a} ${b}</span></li>`).join('')}</ol>
+    <ul class="pw-phases" aria-label="Fases del taller">${PHASES.map(p => `<li>${p.id}. ${esc(p.title)}</li>`).join('')}</ul>
+  </section>
+  <aside class="pw-access" aria-label="Acceso para participantes">
+    <p class="pw-access-title">Regístrate desde tu celular</p>
+    <div class="pw-qr">${productionQr(`Código QR para abrir ${host}`)}</div>
+    <p class="pw-url">${esc(host)}</p>
+    <p class="pw-caption">Abre la cámara y apunta al código</p>
+  </aside>
+  ${s ? `<div class="pw-live"><span>${icon('teams')}<strong>${s.summary.participants}</strong> registrados</span><span>${icon('activities')}<strong>${s.summary.total}</strong> equipos</span><span>${icon('live')}<strong>${s.summary.online ?? 0}</strong> conectados ahora</span><span class="pw-wait">En un momento daremos inicio al taller</span></div>` : '<p class="pw-unlinked">Pantalla sin vincular · Ábrela desde Studio → Proyección para ver el taller en vivo.</p>'}
+</div>`;
+}
 function projectorScreen(s) {
+  if (s.status === 'WAITING') return projectorWelcome(s);
   const phase = PHASES.find(p => p.id === s.activePhase);
   const theory = s.phaseStage === 'THEORY' && ['ACTIVE','PAUSED'].includes(s.status);
   const title = s.status === 'WAITING' ? 'Bienvenidos' : s.status === 'FINISHED' ? 'Taller finalizado' : esc(phase.title);

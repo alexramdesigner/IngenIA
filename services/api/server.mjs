@@ -17,7 +17,7 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 const text = (value, max = 100) => typeof value === 'string' && value.length > 0 && value.length <= max;
 export function createApp(options = {}) {
   const password = options.password ?? process.env.PRESENTER_PASSWORD;
-  if (!password || password.length < 24) throw new Error('Ejecuta npm run setup: PRESENTER_PASSWORD requiere al menos 24 caracteres.');
+  if (!password || password.length < 12) throw new Error('Ejecuta npm run setup: PRESENTER_PASSWORD requiere al menos 12 caracteres.');
   const db = openStore(options.database ?? process.env.DATABASE_PATH ?? './data/ingenia.sqlite');
   const ttl = Number(process.env.TOKEN_TTL_SECONDS ?? 28800) * 1000;
   if (!Number.isFinite(ttl) || ttl < 60000 || ttl > 86400000) throw new Error('TOKEN_TTL_SECONDS debe estar entre 60 y 86400.');
