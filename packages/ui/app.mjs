@@ -240,7 +240,7 @@ function studioTeams(s) {
 function projectorWelcome(s) {
   const host = PRODUCTION_URL.replace(/^https?:\/\//, '');
   const schedule = s ? `${esc(s.title)} · ${s.id === 'tarde' ? '2:00–4:00 p. m.' : '6:00–8:00 p. m.'}` : '18 de noviembre de 2026 · Extensión Chía';
-  const steps = [['qrline', 'Escanea el código o entra a', esc(host)], ['person', 'Escribe tu nombre completo', 'y <strong>tu correo</strong>'], ['teams', 'Únete a tu equipo o créalo:', '<strong>máximo seis integrantes</strong>'], ['monitor', 'Elige tu sesión y espera', '<strong>la señal del conferencista</strong>']];
+  const steps = [['qrline', 'Escanea el código o entra a', esc(host)], ['person', 'Escribe tu nombre completo', 'y <strong>tu correo electrónico</strong>'], ['teams', 'Únete a tu equipo o créalo:', '<strong>máximo seis integrantes</strong>'], ['monitor', 'Elige tu sesión y espera', '<strong>la señal del conferencista</strong>']];
   return `<div class="pw-screen">
   <section class="pw-intro">
     <p class="pw-eyebrow">${icon('live')}<span>${schedule}</span></p>
