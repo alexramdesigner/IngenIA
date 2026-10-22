@@ -19,7 +19,7 @@ jobs:
       - run: npm run check
       - run: npm test
       - name: Empaquetar
-        run: tar -czf "$RUNNER_TEMP/ingenia.tgz" package.json services packages apps
+        run: tar -czf "$RUNNER_TEMP/ingenia.tgz" package.json services packages apps scripts
       - name: Desplegar en ingenia.inggen.com
         env:
           SSH_KEY: ${{ secrets.INGENIA_SSH_KEY }}
