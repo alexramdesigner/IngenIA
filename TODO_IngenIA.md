@@ -7,19 +7,19 @@
 > **Activo oficial recibido:** [IMAGOTIPO_HORIZONTAL_BLANCO.png](IMAGOTIPO_HORIZONTAL_BLANCO.png), original de 1839 × 570 px. Integrado sin alteraciones en los encabezados de participante, Control Center y proyector.
 > **Referencia gráfica principal:** [Mapa de experiencia con IA universitaria.png](<Mapa de experiencia con IA universitaria.png>). Aplicar a participante, Control Center y auditorio; criterios y revisión en la sección 9.
 
-## Seguimiento actualizado · 21 de octubre de 2026
+## Seguimiento actualizado · 22 de octubre de 2026
 
 **Regla de mantenimiento:** actualizar este TODO con cada cambio funcional o visual: alcance implementado, evidencia de verificación y pendientes. Marcar `[x]` solo cuando el requisito esté cubierto; desglosar los requisitos parciales. Una prueba automatizada no sustituye aprobación visual, ensayo de carga o validación en el auditorio.
 
 | Área | Estado actual | Pendiente principal |
 |---|---|---|
 | Infraestructura local | API Node 24, SQLite persistente, Git, configuración y respaldos | Validar Docker/CI y preparar despliegue remoto/TLS |
-| Control de fases | Cinco fases, permisos servidor, comandos transaccionales, auditoría y SSE | Workers de IA y ensayo completo con dispositivos |
+| Control de fases | Seis fases AI-DSE con teoría, práctica, reflexión y cierre; permisos en servidor, comandos transaccionales, auditoría y SSE | Prueba de carga y ensayo completo con dispositivos |
 | Accesos | Participante, Studio y proyector con cookies independientes y bloqueo por rol | Verificación de propiedad del correo |
 | Equipos | Hasta 6 integrantes; sugerencias, nombre canónico y proyecto compartido | Verificación de identidad y gestión administrativa |
 | Visual del participante | Ingreso adaptado a la referencia; comprobado en Chrome | Aprobación del usuario y siguientes pantallas |
-| Studio y proyector | Vistas funcionales; proyección 16:9 autoajustable desde Studio | Ajuste gráfico posterior y validación con proyector real |
-| Simulación | Recorrido mínimo de idea a GO/NO GO y reporte privado | Completar UX, escenarios, rúbrica y funciones de M1 |
+| Studio y proyector | Studio con barra lateral, controles compactos, revisión de entregas e incidentes; proyector 16:9 con bienvenida y QR | Validación con proyector real; preguntas en vivo |
+| Simulación | Entregables por fase, prototipo según proyecto, ciclo Construcción ↔ Verificación e incidentes deterministas | Resumen final, vista previa visual y rúbrica formativa |
 
 ### Evidencias disponibles
 
@@ -32,6 +32,10 @@
 - Detalles: [arquitectura](docs/ARQUITECTURA.md), [operación](docs/OPERACION.md), [referencia visual](docs/REFERENCIA_VISUAL.md) y [estado por alcance](docs/ESTADO.md).
 
 ### Decisiones vigentes
+
+- [x] Retirar «Hora Colombia» de los footers de participante, Studio y proyector.
+
+- [x] Cambiar la etiqueta del correo en el formulario de ingreso a «Correo electrónico».
 
 - [x] Crear repositorio público del proyecto: [alexramdesigner/IngenIA](https://github.com/alexramdesigner/IngenIA). Mantener fuera `.env`, datos de participantes y respaldos.
 
@@ -81,6 +85,10 @@
 - La estadística diferencia **equipos únicos** y **membresías registradas**. Las entregas cuentan una vez por equipo. No equivale a asistencia personal verificada.
 - Recargar con cookie vigente conserva acceso y membresía. Cerrar sesión no elimina la membresía ni libera cupo; reingresar con correo y horario recupera la misma membresía y revoca el acceso anterior. No hay todavía editor colaborativo que fusione cambios simultáneos.
 - Se mantiene nombre de equipo y se añade registro nominal obligatorio (nombre completo y correo institucional) por solicitud del usuario; ya no se solicita código de sala. El servidor asigna un código estadístico por fecha del evento y sesión. Los términos institucionales, retención y verificación de correo siguen pendientes; el correo declarado todavía no se verifica por enlace.
+
+### Revisión · 22 de octubre de 2026
+
+El taller migró al modelo **INGGEN AI-DSE** de seis fases (`TODO_INGENIA_AI_DSE.md`, etapas 1–3: catálogo de fases, subestados, entregables, revisión docente, ciclo de mejora e incidentes). En este archivo se marcaron como hechos los requisitos ya cubiertos y se tacharon los de las cinco fases anteriores. Las casillas abiertas son los pendientes reales; los que bloquean el evento son despliegue con TLS, prueba de carga, política de datos personales y validación en dispositivos reales.
 
 ### Bitácora · 21 de octubre de 2026
 
@@ -185,8 +193,8 @@
 - [x] Modelar **dos sesiones independientes**: 14:00–16:00 y 18:00–20:00; aislamiento de equipos, datos, fases y cronómetros verificado.
 - [ ] Implementar ranking configurable; no hay ranking todavía.
 - [x] Roles mínimos: `PRESENTER`, `PARTICIPANT`, `PROJECTOR`, `ADMIN` opcional. Proyector es solo lectura; participante no obtiene funciones de consola.
-- [ ] Crear salas con `sessionId`, código/QR, estado, fase, versión, reloj, configuraciones y cupos.
-- [ ] Implementar ingreso por QR/código corto a la **sesión correcta**, con protección ante suplantación; definir si hay registro nominal o seudónimo.
+- [x] Crear salas con `sessionId`, código/QR, estado, fase, versión, reloj, configuraciones y cupos. — *Hecho: Sesiones `tarde`/`noche` con estado, fase, subestado, versión, reloj e identificador estadístico; QR en el proyector.*
+- [x] Implementar ingreso por QR/código corto a la **sesión correcta**, con protección ante suplantación; definir si hay registro nominal o seudónimo. — *Hecho: Ingreso por horario con QR a la URL de producción en el proyector; registro nominal con correo.*
 - [ ] Crear/asignar equipos y gestionar miembros, evitando duplicados; permitir modalidad individual si hay participantes sin equipo.
 - [x] Añadir capacidad de reconexión conservando sesión, equipo, trabajo y fase actual.
 - [x] Proteger Control Center con contraseña de entorno, autorización por sesión, cookie HttpOnly, expiración y revocación al cerrar acceso.
@@ -202,10 +210,10 @@
 - [x] Eventos tiempo real: `session.started`, `phase.opened`, `phase.closed`, `session.paused`, `session.resumed`, `session.finished`, `timer.updated`, `team.progress`.
 - [x] Implementar `requireActivePhase` reusable y aplicarlo a todas las rutas protegidas actuales.
 - [ ] Aplicar el guard y la versión original de sesión a cada futuro worker antes de confirmar resultados.
-- [ ] Impedir bypass vía URL directa, peticiones HTTP manipuladas, cliente antiguo, reenvío de formularios, replay y tareas asíncronas.
+- [x] Impedir bypass vía URL directa, peticiones HTTP manipuladas, cliente antiguo, reenvío de formularios, replay y tareas asíncronas. — *Hecho: Guard del servidor con versión e idempotencia; probado en `tests/security.test.mjs`.*
 - [x] Gestionar fase mediante versionado monotónico y transacciones; emitir eventos solo después de confirmar la transacción.
 - [x] Mostrar a todos `Fase N/5`, título, misión, estado y tiempo restante; si hay desfase de red, prevalece el servidor.
-- [ ] Definir permisos precisos para actividades paralelas (preguntas, ayuda, encuesta): no deben activar contenido de etapas futuras.
+- [x] Definir permisos precisos para actividades paralelas (preguntas, ayuda, encuesta): no deben activar contenido de etapas futuras. — *Hecho: Notas y encuesta no habilitan acciones de fases futuras.*
 
 ### Matriz de autorización por defecto
 
@@ -257,41 +265,41 @@
 - [ ] Validar con el usuario esta primera pantalla antes de extender el diseño a las siguientes referencias.
 
 ### Comunes (P0)
-- [ ] Bienvenida/espera: QR válido, nombre de sesión, instrucciones y estado «Esperando al conferencista».
+- [x] Bienvenida/espera: QR válido, nombre de sesión, instrucciones y estado «Esperando al conferencista». — *Hecho: Bienvenida del proyector con QR, sesión, pasos de registro y contadores en vivo.*
 - [x] Inicio: fase actual, misión, cronómetro, equipo, avances, aviso de pausa y botón contextual de la fase.
-- [ ] Mapa de cinco fases: activa destacada; futuras con candado + «Se habilita durante la explicación»; anteriores en lectura.
+- [x] ~~Mapa de cinco fases: activa destacada; futuras con candado + «Se habilita durante la explicación»; anteriores en lectura.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
 - [ ] Centro de ayuda: instrucciones cortas, preguntas al conferencista y problemas de conexión.
 - [ ] Estados de carga, errores, espera, reconexión y cierre sin pérdida de trabajo.
 
 ### 1. Ideación (P0)
-- [ ] Pantalla «Tu equipo y tu idea»: nombre del equipo, categoría (eventos/reservas, tareas, vitrina, etc.) y público objetivo.
-- [ ] Editor de prompt con plantilla guiada: problema, usuario, funcionalidades, datos y requisitos básicos de seguridad.
+- [x] ~~Pantalla «Tu equipo y tu idea»: nombre del equipo, categoría (eventos/reservas, tareas, vitrina, etc.) y público objetivo.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
+- [x] ~~Editor de prompt con plantilla guiada: problema, usuario, funcionalidades, datos y requisitos básicos de seguridad.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
 - [x] Botón «Mejorar prompt» (plantillas deterministas en modo demo; IA opcional si está disponible), sin generar código.
 - [ ] Guardado automático con validación y marca «Idea lista»; esperar autorización para Generar app.
 
 ### 2. Generar app (P0)
-- [ ] Botón «Generar prototipo» habilitado solo en fase 2, con límites de iteración configurables.
-- [ ] Simulador con resultados seguros y reproducibles para categorías soportadas; diferenciar claramente generación simulada de IA real.
+- [x] ~~Botón «Generar prototipo» habilitado solo en fase 2, con límites de iteración configurables.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
+- [x] Simulador con resultados seguros y reproducibles para categorías soportadas; diferenciar claramente generación simulada de IA real. — *Hecho: Fixtures deterministas por proyecto y arquitectura, rotulados SIMULACIÓN.*
 - [ ] Pantallas «Vista previa» y «Código» en pestañas; explicaciones claras de qué hace cada componente.
 - [ ] Entorno aislado para previews activos, sin acceso a secretos ni a red sensible; ofrecer preview estático cuando no haya ejecución.
 - [x] Historial/versiones para comparar iteraciones y preservar el código que se auditará.
-- [ ] Entrega «Prototipo listo» con resumen; mensaje de espera hasta fase 3.
+- [x] ~~Entrega «Prototipo listo» con resumen; mensaje de espera hasta fase 3.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
 
 ### 3. Auditar (P0)
-- [ ] Pantalla «Auditoría / Red Team» con escenario educativo elegido por el conferencista.
-- [ ] Hallazgos controlados: credencial incrustada, falta de autorización, exposición de datos en registros; explicar gravedad, evidencia y consecuencia.
-- [ ] Ejercicio «Detecta el riesgo»: elegir hallazgos y justificar, sin herramientas para atacar servicios reales.
-- [ ] Guardar respuestas y resultados para puntaje; sin habilitar correcciones hasta fase 4.
+- [x] ~~Pantalla «Auditoría / Red Team» con escenario educativo elegido por el conferencista.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
+- [x] ~~Hallazgos controlados: credencial incrustada, falta de autorización, exposición de datos en registros; explicar gravedad, evidencia y consecuencia.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
+- [x] ~~Ejercicio «Detecta el riesgo»: elegir hallazgos y justificar, sin herramientas para atacar servicios reales.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
+- [x] ~~Guardar respuestas y resultados para puntaje; sin habilitar correcciones hasta fase 4.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
 - [x] Diferenciar «simulación de vulnerabilidad» de análisis de seguridad verificable; no afirmar que un prototipo es seguro por una lista simulada.
 
 ### 4. Corregir (P0)
-- [ ] Pantalla «Corrección / Blue Team»: sugerencias por hallazgo, código antes/después y explicación.
+- [x] ~~Pantalla «Corrección / Blue Team»: sugerencias por hallazgo, código antes/después y explicación.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
 - [x] Botón «Aplicar corrección» exclusivamente en fase 4; registrar cambios y versiones.
-- [ ] Revalidación educativa contra reglas/fixtures; marcar mitigaciones verificadas y pendientes.
-- [ ] Resumen de mejoras y nueva puntuación; detenerse antes de publicación.
+- [x] ~~Revalidación educativa contra reglas/fixtures; marcar mitigaciones verificadas y pendientes.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
+- [x] ~~Resumen de mejoras y nueva puntuación; detenerse antes de publicación.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
 
 ### 5. Publicar (P0)
-- [ ] Pantalla «Checklist final»: funcionamiento, errores relevantes, autorización, privacidad, registros, justificación de riesgos.
+- [x] ~~Pantalla «Checklist final»: funcionamiento, errores relevantes, autorización, privacidad, registros, justificación de riesgos.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
 - [x] Pantalla «Decisión GO / NO GO» con justificación y veredicto del equipo.
 - [x] «Publicar» significa **presentación/publicación de prototipo en entorno de demostración aislado**, nunca despliegue público por defecto.
 - [ ] Vista de entrega final con enlace temporal seguro de demo (si existe), reporte descargable y pantalla de felicitación.
@@ -337,7 +345,7 @@
 - [x] Implementar lienzo 1920×1080, escala uniforme automática al redimensionar y botón de pantalla completa; conservar 16:9 mediante bandas cuando corresponda.
 - [ ] Validar visualmente en navegador y proyector real el lienzo 16:9, el cambio de monitor y la pantalla completa.
 
-- [ ] Vista exclusiva 16:9, tipografía grande, contraste alto, logotipo institucional blanco.
+- [x] Vista exclusiva 16:9, tipografía grande, contraste alto, logotipo institucional blanco. — *Hecho: Lienzo 1920×1080 con imagotipo blanco y tipografía grande.*
 - [x] Mostrar fase actual **entre las cinco**: Ideación, Generar app, Auditar, Corregir, Publicar.
 - [x] Misión y explicación breve; «Fase bloqueada / Esperando conferencista» al inicio; «Pausa» si corresponde.
 - [x] Cuenta regresiva controlada por el presentador, basada en reloj del servidor.
@@ -373,7 +381,7 @@
 ## 8. Reglas de producto y experiencia pedagógica (P0)
 
 - [ ] Todas las pantallas responden a «¿Qué hago ahora?» y «¿Qué espero del conferencista?».
-- [ ] Cada fase presenta tres momentos: **Explicación del conferencista → Ejercicio habilitado → Espera/revisión**; solo el conferencista avanza.
+- [x] Cada fase presenta tres momentos: **Explicación del conferencista → Ejercicio habilitado → Espera/revisión**; solo el conferencista avanza. — *Hecho: Teoría → Práctica → Reflexión → Cerrada, dirigido solo desde Studio.*
 - [ ] Para no castigar a quien termina rápido, ofrecer mejoras opcionales seguras **de la misma fase** (p. ej., refinar la descripción, examinar código generado, explicar una vulnerabilidad), sujetas al tiempo y límites de uso.
 - [ ] Para quien va lento, conservar el trabajo y permitir al conferencista habilitar una recuperación o aplicar un ejemplo de rescate **sin abrir fases futuras**.
 - [ ] Proponer tiempos configurables para cada sesión de dos horas; no imponer una duración fija por fase.
@@ -435,8 +443,8 @@
 - [ ] Tipografía: sans serif, títulos de peso alto, textos breves y etiquetas legibles; definir escala responsive para móvil, escritorio y proyección. La familia exacta requiere el manual o archivo tipográfico oficial.
 - [ ] Componentes: CTA lima de ancho completo en móvil, acciones secundarias verdes, campos claros, pestañas segmentadas, badges compactos, iconos de una misma familia y navegación consistente con la referencia.
 - [ ] Participante: composición móvil con encabezado compacto, tarjetas apiladas y navegación inferior; adaptar a web responsive sin dibujar marcos de teléfono alrededor de la aplicación real.
-- [ ] Control Center: estructura de escritorio con navegación lateral, tarjetas compactas para fase y reloj, recorrido de cinco fases y paneles de equipos/actividad. Mantener confirmaciones y acciones exclusivas del conferencista.
-- [ ] Proyector: composición 16:9, encabezado institucional, fase y cronómetro dominantes; misión y progreso legibles desde el auditorio, sin nombres personales ni información privada.
+- [x] Control Center: estructura de escritorio con navegación lateral, tarjetas compactas para fase y reloj, recorrido de cinco fases y paneles de equipos/actividad. Mantener confirmaciones y acciones exclusivas del conferencista. — *Hecho: Barra lateral colapsable, tarjetas de fase y reloj, recorrido de seis fases y paneles de equipos, incidentes y eventos.*
+- [x] Proyector: composición 16:9, encabezado institucional, fase y cronómetro dominantes; misión y progreso legibles desde el auditorio, sin nombres personales ni información privada. — *Hecho: Fase y cronómetro dominantes, misión, avance de equipos y eventos, sin datos personales.*
 - [ ] Auditoría/corrección: distinguir Red Team mediante escudo y señal de riesgo, y Blue Team mediante escudo/estado de mitigación; complementar siempre el color con texto e iconos. Conservar la etiqueta «simulación educativa».
 - [ ] Resultado: usar la jerarquía de logro y resumen de la referencia, pero mostrar GO/NO GO para **demo privada**, sin afirmar «lista para producción» ni seguridad verificada por la simulación.
 - [ ] Implementar y revisar estados activo, bloqueado, lectura, completado, pausa, reconexión y error en los mismos componentes; diferenciar fase habilitada de entrega completada.
@@ -497,13 +505,13 @@ Base funcional implementada; el hito completo sigue pendiente por ausencia del Z
 - [ ] Migrar base beta a proyecto modular y preparar backend/base de datos.
 - [x] Implementar sesiones, roles, motor de fases, locks servidor, WebSocket, temporizador y auditoría de acciones.
 - [x] Crear Control Center mínimo, pantalla de espera del participante y proyector sincronizado.
-- [ ] Aprobar los 15 casos de bloqueo y sincronización que correspondan al alcance de M0.
+- [x] Aprobar los 15 casos de bloqueo y sincronización que correspondan al alcance de M0. — *Hecho: Casos 1–15 cubiertos por pruebas automatizadas.*
 
 ### M1 — Experiencia completa de simulación (P0)
-- [ ] Ideación, generador determinista, vista previa/código, auditoría educativa, correcciones y GO/NO GO.
+- [x] ~~Ideación, generador determinista, vista previa/código, auditoría educativa, correcciones y GO/NO GO.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
 - [ ] Misiones por fase, estados de espera, trabajo por equipos, progreso y guardado persistente.
-- [ ] Modo demo sin servicios externos, con métricas sintéticas claramente marcadas.
-- [ ] Ensayo completo de las cinco fases dirigido exclusivamente por conferencista.
+- [x] Modo demo sin servicios externos, con métricas sintéticas claramente marcadas. — *Hecho: Modo DEMO sin servicios externos; prototipos rotulados SIMULACIÓN.*
+- [x] ~~Ensayo completo de las cinco fases dirigido exclusivamente por conferencista.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
 
 ### M2 — Operación real en auditorio (P0/P1)
 - [ ] Acceso por QR en múltiples dispositivos, identidad de equipo, recuperación de conexión y métricas reales.
