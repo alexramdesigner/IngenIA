@@ -22,6 +22,8 @@ export function openStore(path) {
     CREATE TABLE IF NOT EXISTS team_reviews(session_id TEXT PRIMARY KEY REFERENCES sessions(id), data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS presenter_phase_notes(session_id TEXT NOT NULL REFERENCES sessions(id), phase INTEGER NOT NULL CHECK(phase BETWEEN 1 AND 6), content TEXT NOT NULL, version INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(session_id,phase));
     CREATE INDEX IF NOT EXISTS identities_team_members ON identities(team_id,role);
+    CREATE TABLE IF NOT EXISTS incident_assignments(session_id TEXT NOT NULL REFERENCES sessions(id), team_id TEXT NOT NULL REFERENCES teams(id), code TEXT NOT NULL, phase INTEGER NOT NULL, status TEXT NOT NULL, origin TEXT NOT NULL, assigned_at INTEGER NOT NULL, revealed_at INTEGER, response TEXT, resolved_at INTEGER, shared_at INTEGER, discussed_at INTEGER, PRIMARY KEY(session_id,team_id,code));
+    CREATE TABLE IF NOT EXISTS incident_shares(session_id TEXT PRIMARY KEY REFERENCES sessions(id), data TEXT NOT NULL);
 `);
   // Conserva los equipos históricos; el primer nombre equivalente se usa para nuevos ingresos.
   transaction(db, () => {

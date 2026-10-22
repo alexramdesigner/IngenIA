@@ -60,12 +60,14 @@ function save(project, phase, data, status, now) {
 
 // Prototipo simulado: siempre corresponde al proyecto y a la arquitectura elegidos por el equipo.
 const NAMES = { reservas: ['Reserva', 'Reservas'], tareas: ['Tarea', 'Tareas'], prestamos: ['Prestamo', 'Prestamos'], tutorias: ['Tutoria', 'Tutorias'] };
-function prototype(typeId, architectureId) {
+// Variantes de incidente: el resultado solo se desvía cuando hay un incidente asignado al equipo.
+const mismatchFor = typeId => PROJECT_TYPES[(PROJECT_TYPES.findIndex(t => t.id === typeId) + 1) % PROJECT_TYPES.length].id;
+function prototype(typeId, architectureId, variants = []) {
   const type = projectType(typeId), [one, many] = NAMES[typeId], store = many.toLowerCase();
   const architecture = ARCHITECTURES.find(a => a.id === architectureId);
   const header = `// SIMULACIÓN EDUCATIVA · Prototipo «${type.title}» generado por un fixture determinista, sin IA real.\n// Arquitectura: ${architecture.title}. Credenciales ficticias: nunca válidas.\n`;
   const core = `export function crear${one}(usuario, datos) {\n  if (!datos.titulo || !datos.fecha) throw new Error('DATOS_REQUERIDOS');\n  const registro = { id: ${store}.length + 1, propietarioId: usuario.id, ...datos };\n  ${store}.push(registro);\n  return registro;\n}\nexport function listarMis${many}(usuario) {\n  return ${store}.filter(registro => registro.propietarioId === usuario.id);\n}\nexport function obtener${one}(id) {\n  return ${store}.find(registro => registro.id === id);\n}\n`;
-  const variants = {
+  const bodies = {
     static: `const ${store} = JSON.parse(localStorage.getItem('${store}') ?? '[]');\nconst API_KEY = 'FICTICIA_NO_USAR';\n${core}export const guardar = () => localStorage.setItem('${store}', JSON.stringify(${store}));\n`,
     'client-api': `const ${store} = [];\nconst DB_PASSWORD = 'FICTICIA_NO_USAR';\n${core}app.get('/api/${store}/:id', (req, res) => res.json(obtener${one}(Number(req.params.id))));\n`,
     managed: `const ${store} = coleccion('${store}');\nconst SERVICE_KEY = 'FICTICIA_NO_USAR';\n${core}// reglas: match /${store}/{id} { allow read: if true; allow write: if request.auth != null; }\n`
@@ -77,10 +79,11 @@ function prototype(typeId, architectureId) {
     { name: `Consultar la ${type.entity} de otro usuario por su id`, result: 'FAIL', detail: 'Devuelve el registro ajeno: no se comprueba el propietario.' }
   ];
   if (architectureId === 'static') scenarios.push({ name: `Ver las ${type.entities} desde otro dispositivo`, result: 'FAIL', detail: 'Los datos solo existen en este navegador.' });
-  return { code: header + variants[architectureId], scenarios };
+  const dependency = variants.includes('phantom_dependency') ? `import { calendario } from '${store}-facil-pro'; // dependencia sugerida por la IA\n` : '';
+  return { code: header + dependency + bodies[architectureId], scenarios };
 }
 
-export function applyDemo(project, action, body, { iteration = 1, now = Date.now() } = {}) {
+export function applyDemo(project, action, body, { iteration = 1, now = Date.now(), variants = [] } = {}) {
   const p = structuredClone(project ?? {});
   p.deliverables ??= {}; p.versions ??= [];
   for (const [phase, code] of PREREQUISITES[action] ?? []) if (!isDelivered(p.deliverables[phase])) throw new ApiError(409, code);
@@ -88,7 +91,9 @@ export function applyDemo(project, action, body, { iteration = 1, now = Date.now
     if (typeof body.prompt !== 'string' || body.prompt.trim().length < 20 || body.prompt.length > 6000) throw new ApiError(400, 'PROMPT_LENGTH');
     if (p.versions.filter(v => v.phase === LOOP_TO && (v.iteration ?? 1) === iteration).length >= 3) throw new ApiError(429, 'ITERATION_LIMIT');
     const { projectType: typeId } = p.deliverables[1].data, { architecture } = p.deliverables[3].data;
-    p.versions.push({ phase: LOOP_TO, iteration, prompt: body.prompt.trim(), projectType: typeId, architecture, ...prototype(typeId, architecture), sourceMode: 'DEMO', createdAt: now });
+    // requirements_mismatch: discrepancia intencional y explicable, marcada en la versión para Studio.
+    const generatedType = variants.includes('requirements_mismatch') ? mismatchFor(typeId) : typeId;
+    p.versions.push({ phase: LOOP_TO, iteration, prompt: body.prompt.trim(), projectType: typeId, generatedType, architecture, ...prototype(generatedType, architecture, variants), ...(variants.length ? { incidentVariants: variants } : {}), sourceMode: 'DEMO', createdAt: now });
     save(p, LOOP_TO, { prompt: body.prompt.trim(), version: p.versions.length }, 'draft', now);
     return p;
   }
@@ -102,6 +107,15 @@ export function applyDemo(project, action, body, { iteration = 1, now = Date.now
     Object.assign(data, { prompt: latest.prompt, version: p.versions.lastIndexOf(latest) + 1 });
   }
   save(p, phase, data, draft ? 'draft' : 'submitted', now);
+  return p;
+}
+// assertionless_test: al asignarse en Verificación, la última versión muestra una prueba verde sin aserciones.
+export function applyIncidentVariant(project, variant) {
+  const p = structuredClone(project ?? {});
+  const latest = p.versions?.at(-1);
+  if (variant !== 'assertionless_test' || !latest || latest.scenarios.some(sc => sc.variant === variant)) return p;
+  const type = projectType(latest.generatedType ?? latest.projectType);
+  latest.scenarios.push({ name: `Cancelar una ${type.entity}`, result: 'PASS', detail: 'La prueba ejecuta la cancelación, pero no compara el resultado con lo esperado.', variant });
   return p;
 }
 // Nueva iteración: Construcción y Verificación se archivan y vuelven a empezar; el historial se conserva.

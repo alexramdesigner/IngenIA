@@ -129,3 +129,14 @@
 #projection-stage .pw-live .pw-wait{margin-left:auto;color:var(--pj-lime);font-weight:650}
 @keyframes pw-glow{from{box-shadow:0 0 30px #9fe86a44}to{box-shadow:0 0 70px #9fe86a88}}
 @media(prefers-reduced-motion:reduce){#projection-stage .pw-qr{animation:none}}
+
+/* Incidente compartido: descripción genérica, pregunta y aprendizaje. */
+#projection-stage .incident-share{border-color:#ffd17d99;box-shadow:0 30px 90px #000a,0 0 60px #ffd17d22}
+#projection-stage .incident-display-eyebrow{display:flex;align-items:center;gap:14px;margin:0 0 12px!important;color:#ffd17d;font-size:26px!important;font-weight:700}
+#projection-stage .incident-display-eyebrow .ui-icon{width:34px;height:34px}
+#projection-stage .incident-display h1{margin:0 0 10px;font-size:64px}
+#projection-stage .incident-display-team{color:var(--muted)}
+#projection-stage .incident-display-text{font-size:34px!important;line-height:1.4!important;margin:22px 0!important}
+#projection-stage .incident-display-question{padding:22px 28px;border-left:5px solid var(--pj-lime);background:#c9fa7214;font-size:36px!important;font-weight:700;color:var(--pj-lime)}
+#projection-stage .incident-display-learning{display:grid;gap:8px;margin-top:22px;padding:22px 28px;border-radius:18px;background:#2fd36b1f;font-size:30px}
+#projection-stage .incident-display-learning span{color:var(--muted);font-size:24px}

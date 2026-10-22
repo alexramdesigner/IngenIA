@@ -6,7 +6,8 @@ import { resolve, extname } from 'node:path';
 import { reviewSnapshot } from './team-review.mjs';
 import { openStore, transaction } from './store.mjs';
 import { ApiError, transition, requireActivePhase, permissions } from './domain.mjs';
-import { applyDemo, startIteration, reviewDeliverable, deliverableText } from './deliverables.mjs';
+import { applyDemo, startIteration, reviewDeliverable, deliverableText, applyIncidentVariant } from './deliverables.mjs';
+import { INCIDENT_DEFAULTS, incidentByCode, planAssignments, participantIncidents, presenterIncident, projectorIncident, catalogForPhase } from './incidents.mjs';
 import { TEAM_ROLES } from '../../packages/shared/team-roles.mjs';
 import { MAX_TEAM_MEMBERS, teamName, teamKey } from '../../packages/shared/teams.mjs';
 import { ACTION_PHASE, PHASE_COUNT } from '../../packages/shared/phases.mjs';
@@ -61,6 +62,29 @@ export function createApp(options = {}) {
     const row=db.prepare('SELECT data FROM team_reviews WHERE session_id=?').get(id);
     return row?JSON.parse(row.data):{visible:false,version:0};
   };
+  // Incidentes: asignaciones por equipo y la intervención que se comparte en el auditorio.
+  const incidentShare = id => {
+    const row = db.prepare('SELECT data FROM incident_shares WHERE session_id=?').get(id);
+    return row ? JSON.parse(row.data) : { visible: false, version: 0 };
+  };
+  const saveShare = (id, data) => db.prepare('INSERT INTO incident_shares VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET data=excluded.data').run(id, JSON.stringify(data));
+  const assignments = (id, teamId) => db.prepare(`SELECT * FROM incident_assignments WHERE session_id=?${teamId ? ' AND team_id=?' : ''} ORDER BY phase, assigned_at`).all(...(teamId ? [id, teamId] : [id]))
+    .map(r => ({ teamId: r.team_id, code: r.code, phase: r.phase, status: r.status, origin: r.origin, assignedAt: r.assigned_at, revealedAt: r.revealed_at, response: r.response ? JSON.parse(r.response) : null, resolvedAt: r.resolved_at, sharedAt: r.shared_at, discussedAt: r.discussed_at }));
+  function assignIncident(id, teamId, code, phase, origin) {
+    db.prepare('INSERT INTO incident_assignments(session_id,team_id,code,phase,status,origin,assigned_at) VALUES (?,?,?,?,?,?,?)').run(id, teamId, code, phase, 'assigned', origin, Date.now());
+    // Las variantes que dependen de un resultado ya generado se aplican al asignar.
+    const variant = incidentByCode(code).fixtureVariant;
+    if (variant === 'assertionless_test') {
+      const row = db.prepare('SELECT data FROM teams WHERE id=?').get(teamId), team = JSON.parse(row.data);
+      team.project = applyIncidentVariant(team.project, variant);
+      db.prepare('UPDATE teams SET data=? WHERE id=?').run(JSON.stringify(team), teamId);
+    }
+  }
+  function autoAssign(id, phase) {
+    const config = { ...INCIDENT_DEFAULTS, ...(getSession(id).incidentConfig ?? {}) };
+    const teamIds = db.prepare('SELECT id FROM teams WHERE session_id=? ORDER BY id').all(id).map(r => r.id);
+    for (const item of planAssignments(id, teamIds, phase, assignments(id), config)) assignIncident(id, item.teamId, item.code, item.phase, 'auto');
+  }
   function state(id, actor) {
     const s = getSession(id);
     const teams = db.prepare('SELECT data FROM teams WHERE session_id=?').all(id).map(row => JSON.parse(row.data));
@@ -72,11 +96,14 @@ export function createApp(options = {}) {
     const statisticsCode = db.prepare('SELECT statistics_code FROM sessions WHERE id=?').get(id).statistics_code;
     const result = { ...s, statisticsCode, serverTime: Date.now(), permissions: permissions(s, actor.role), role: actor.role, summary };
     if(['PRESENTER','PROJECTOR'].includes(actor.role))result.teamReview=teamReview(id);
+    const share = incidentShare(id);
+    if (actor.role === 'PROJECTOR') result.incidentShare = projectorIncident(share, share.visible ? teams.find(t => t.id === share.teamId)?.name : null);
     // Auditorio: solo nombre del equipo y fases entregadas, sin integrantes ni contenido.
     if (actor.role === 'PROJECTOR') result.leaderboard = teams.map(t => ({ name: t.name, completed: delivered(t.project).length })).sort((a, b) => b.completed - a.completed || a.name.localeCompare(b.name, 'es'));
     if (actor.role === 'PRESENTER') {
       result.phaseNotes = Object.fromEntries(db.prepare('SELECT phase,content,version,updated_at AS updatedAt FROM presenter_phase_notes WHERE session_id=?').all(id).map(note=>[note.phase,note]));
       result.joinCode = db.prepare('SELECT join_code FROM sessions WHERE id=?').get(id).join_code;
+      result.incidents = { share, catalog: catalogForPhase(s.activePhase), assignments: assignments(id).map(a => ({ ...presenterIncident(a), teamName: teams.find(t => t.id === a.teamId)?.name ?? '' })) };
       result.teams = teams.map(t => ({ id: t.id, name: t.name, memberCount: memberCount(t.id), maxMembers: MAX_TEAM_MEMBERS, members: db.prepare('SELECT identity_id AS id,full_name AS fullName,email,team_role AS teamRole FROM participant_profiles WHERE team_id=? ORDER BY rowid').all(t.id), completed: delivered(t.project),
         // Entrega de la fase activa para revisarla desde Studio.
         current: s.activePhase ? { status: t.project.deliverables?.[s.activePhase]?.status ?? null, review: t.project.deliverables?.[s.activePhase]?.review ?? null, text: deliverableText(t.project, s.activePhase) } : null,
@@ -88,6 +115,7 @@ export function createApp(options = {}) {
       result.team = { ...team, memberCount: memberCount(team.id), maxMembers: MAX_TEAM_MEMBERS };
       const note = db.prepare('SELECT content,version,updated_at AS updatedAt FROM participant_notes WHERE identity_id=? AND session_id=?').get(actor.id,id);
       result.note = note ?? {content:'',version:0,updatedAt:null};
+      result.incidents = participantIncidents(assignments(id, team.id), s);
     }
     return result;
   }
@@ -251,7 +279,7 @@ export function createApp(options = {}) {
       if (path === '/api/me' && req.method === 'GET') {
         const a = authenticate(req); return json(res, 200, { sessionId: a.session_id, role: a.role });
       }
-      const match = new RegExp(`^/api/sessions/([a-z]+)/(state|events|phase-command|phase-notes|team-review|team-admin|deliverable-review|projector-access|report|actions/(${Object.keys(ACTION_PHASE).join('|')}))$`).exec(path);
+      const match = new RegExp(`^/api/sessions/([a-z]+)/(state|events|phase-command|phase-notes|team-review|team-admin|deliverable-review|incidents|incident-response|projector-access|report|actions/(${Object.keys(ACTION_PHASE).join('|')}))$`).exec(path);
       if (match) {
         const [, id, route, action] = match;
         const actor = authenticate(req); authorize(actor, id);
@@ -324,6 +352,9 @@ export function createApp(options = {}) {
               const team = db.prepare('SELECT id FROM teams WHERE id=? AND session_id=?').get(b.teamId, id);
               if (!team) throw new ApiError(404, 'TEAM_NOT_FOUND');
               for (const member of db.prepare("SELECT id FROM identities WHERE team_id=? AND role='PARTICIPANT'").all(team.id)) removeMember(member.id);
+              db.prepare('DELETE FROM incident_assignments WHERE team_id=?').run(team.id);
+              const share = incidentShare(id);
+              if (share.visible && share.teamId === team.id) { saveShare(id, { visible: false, version: share.version + 1 }); reviewChanged = true; }
               db.prepare('DELETE FROM team_names WHERE team_id=?').run(team.id);
               db.prepare('DELETE FROM teams WHERE id=?').run(team.id);
               const review = teamReview(id);
@@ -340,6 +371,74 @@ export function createApp(options = {}) {
           emit(id, 'team.progress');
           if (reviewChanged) { emit(id, 'team.review.updated', 'PRESENTER'); emit(id, 'team.review.updated', 'PROJECTOR'); }
           return json(res, 200, result);
+        }
+        if (route === 'incidents' && req.method === 'POST') {
+          // Studio asigna, revela, comparte y cierra incidentes; cada acción queda auditada.
+          authorize(actor, id, 'PRESENTER'); const b = await body(req);
+          const actions = ['ASSIGN','UNASSIGN','REVEAL','HIDE','RESOLVE','SHARE','LEARNING','END_SHARE'];
+          if (!actions.includes(b.action) || (!['LEARNING','END_SHARE'].includes(b.action) && (!text(b.teamId, 100) || !text(b.code, 20)))) throw new ApiError(400, 'INVALID_COMMAND');
+          let reviewHidden = false;
+          const result = transaction(db, () => {
+            const s = getSession(id), share = incidentShare(id);
+            const find = () => db.prepare('SELECT * FROM incident_assignments WHERE session_id=? AND team_id=? AND code=?').get(id, b.teamId, b.code);
+            const setStatus = (status, column) => db.prepare(`UPDATE incident_assignments SET status=?${column ? `,${column}=?` : ''} WHERE session_id=? AND team_id=? AND code=?`).run(...[status, ...(column ? [Date.now()] : []), id, b.teamId, b.code]);
+            if (['SHARE','LEARNING','END_SHARE'].includes(b.action) && b.expectedVersion !== share.version) throw new ApiError(409, 'INCIDENT_SHARE_CONFLICT');
+            if (b.action === 'ASSIGN') {
+              const definition = incidentByCode(b.code);
+              if (!definition) throw new ApiError(404, 'INCIDENT_NOT_FOUND');
+              if (!db.prepare('SELECT 1 FROM teams WHERE id=? AND session_id=?').get(b.teamId, id)) throw new ApiError(404, 'TEAM_NOT_FOUND');
+              if (find()) throw new ApiError(409, 'INCIDENT_ALREADY_ASSIGNED');
+              if (assignments(id, b.teamId).some(a => a.phase === definition.phaseId)) throw new ApiError(409, 'INCIDENT_PHASE_TAKEN');
+              assignIncident(id, b.teamId, b.code, definition.phaseId, 'manual');
+            } else if (['LEARNING','END_SHARE'].includes(b.action)) {
+              if (!share.visible) throw new ApiError(409, 'INCIDENT_NOT_SHARED');
+              if (b.action === 'LEARNING') saveShare(id, { ...share, learning: true, version: share.version + 1 });
+              else {
+                db.prepare("UPDATE incident_assignments SET status='discussed',discussed_at=? WHERE session_id=? AND team_id=? AND code=?").run(Date.now(), id, share.teamId, share.code);
+                saveShare(id, { visible: false, version: share.version + 1 });
+              }
+            } else {
+              const row = find();
+              if (!row) throw new ApiError(404, 'INCIDENT_NOT_FOUND');
+              if (b.action === 'UNASSIGN') {
+                db.prepare('DELETE FROM incident_assignments WHERE session_id=? AND team_id=? AND code=?').run(id, b.teamId, b.code);
+                if (share.visible && share.teamId === b.teamId && share.code === b.code) saveShare(id, { visible: false, version: share.version + 1 });
+              }
+              if (['REVEAL','SHARE'].includes(b.action) && (s.activePhase !== row.phase || !['ACTIVE','PAUSED'].includes(s.status))) throw new ApiError(409, 'INCIDENT_PHASE_MISMATCH');
+              if (b.action === 'REVEAL' && row.status === 'assigned') setStatus('revealed', 'revealed_at');
+              if (b.action === 'HIDE') { if (row.response) throw new ApiError(409, 'INCIDENT_HAS_RESPONSE'); setStatus('assigned'); }
+              if (b.action === 'RESOLVE') { if (row.status === 'assigned') throw new ApiError(409, 'INCIDENT_NOT_REVEALED'); setStatus('resolved', 'resolved_at'); }
+              if (b.action === 'SHARE') {
+                if (row.status === 'assigned') throw new ApiError(409, 'INCIDENT_NOT_REVEALED');
+                db.prepare('UPDATE incident_assignments SET shared_at=? WHERE session_id=? AND team_id=? AND code=?').run(Date.now(), id, b.teamId, b.code);
+                saveShare(id, { visible: true, teamId: b.teamId, code: b.code, learning: false, version: share.version + 1 });
+                // Una sola intervención en pantalla: compartir un incidente retira la revisión de entregas.
+                const review = teamReview(id);
+                if (review.visible) { db.prepare('UPDATE team_reviews SET data=? WHERE session_id=?').run(JSON.stringify({ visible: false, version: review.version + 1 }), id); reviewHidden = true; }
+              }
+            }
+            db.prepare('INSERT INTO phase_actions(session_id,actor_id,version,data,timestamp) VALUES (?,?,?,?,?)').run(id, actor.id, s.version, JSON.stringify({ action: 'INCIDENT_' + b.action, teamId: b.teamId ?? share.teamId ?? null, code: b.code ?? share.code ?? null }), Date.now());
+            return state(id, actor);
+          });
+          emit(id, 'incident.updated');
+          if (reviewHidden) { emit(id, 'team.review.updated', 'PRESENTER'); emit(id, 'team.review.updated', 'PROJECTOR'); }
+          return json(res, 200, result);
+        }
+        if (route === 'incident-response' && req.method === 'POST') {
+          // El equipo registra su decisión ante el incidente revelado de la fase en práctica.
+          authorize(actor, id, 'PARTICIPANT'); const b = await body(req);
+          if (!text(b.code, 20) || typeof b.choice !== 'string' || typeof b.justification !== 'string' || b.justification.trim().length < 10 || b.justification.length > 600) throw new ApiError(400, 'INCIDENT_RESPONSE_INVALID');
+          const result = transaction(db, () => {
+            const s = getSession(id);
+            const row = db.prepare('SELECT * FROM incident_assignments WHERE session_id=? AND team_id=? AND code=?').get(id, actor.team_id, b.code);
+            if (!row || row.status === 'assigned') throw new ApiError(404, 'INCIDENT_NOT_FOUND');
+            requireActivePhase(s, row.phase);
+            if (['resolved','discussed'].includes(row.status)) throw new ApiError(409, 'INCIDENT_CLOSED');
+            if (!incidentByCode(b.code).choices.some(choice => choice.id === b.choice)) throw new ApiError(400, 'INCIDENT_RESPONSE_INVALID');
+            db.prepare("UPDATE incident_assignments SET status='acknowledged',response=? WHERE session_id=? AND team_id=? AND code=?").run(JSON.stringify({ choice: b.choice, justification: b.justification.trim(), at: Date.now() }), id, actor.team_id, b.code);
+            return state(id, actor);
+          });
+          emit(id, 'incident.updated'); return json(res, 200, result);
         }
         if (route === 'deliverable-review' && req.method === 'POST') {
           // Studio acepta una entrega o pide revisarla; queda auditado y el equipo lo ve al instante.
@@ -393,6 +492,7 @@ export function createApp(options = {}) {
               db.prepare('INSERT INTO team_reviews VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET data=excluded.data').run(id,JSON.stringify({visible:false,version:review.version+1}));
             }
             db.prepare('UPDATE sessions SET data=? WHERE id=?').run(JSON.stringify(next), id);
+            if (next.phaseStage === 'PRACTICE' && ['PRACTICE','ITERATE'].includes(b.action)) autoAssign(id, next.activePhase);
             db.prepare('INSERT INTO phase_actions(session_id,actor_id,version,data,timestamp) VALUES (?,?,?,?,?)').run(id, actor.id, next.version, JSON.stringify({ action: b.action, fromPhase: old.activePhase, toPhase: next.activePhase, fromStatus: old.status, toStatus: next.status, reason: b.reason ?? null }), Date.now());
             const response = state(id, actor);
             db.prepare('INSERT INTO idempotency VALUES (?,?,?,?,?)').run(id, actor.id, b.idempotencyKey, request, JSON.stringify(response));
@@ -416,7 +516,8 @@ export function createApp(options = {}) {
             if (replay) { if (replay.request !== request) throw new ApiError(409, 'IDEMPOTENCY_CONFLICT'); return JSON.parse(replay.response); }
             const row = db.prepare('SELECT data FROM teams WHERE id=? AND session_id=?').get(actor.team_id, id);
             const team = JSON.parse(row.data);
-            team.project = applyDemo(team.project, action, b, { iteration: s.iteration ?? 1 });
+            const variants = assignments(id, actor.team_id).filter(a => a.phase === ACTION_PHASE[action]).map(a => incidentByCode(a.code).fixtureVariant).filter(Boolean);
+            team.project = applyDemo(team.project, action, b, { iteration: s.iteration ?? 1, variants });
             db.prepare('UPDATE teams SET data=? WHERE id=?').run(JSON.stringify(team), actor.team_id);
             const response = state(id, actor);
             db.prepare('INSERT INTO idempotency VALUES (?,?,?,?,?)').run(id, actor.id, b.idempotencyKey, request, JSON.stringify(response));

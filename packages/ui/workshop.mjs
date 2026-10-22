@@ -36,7 +36,7 @@ export function workshopActivity(s, { draft, online, busy }) {
   const p = s.team.project ?? {};
   const phase = PHASES.find(item => item.id === s.activePhase);
   const team = `<p class="muted">${esc(s.team.name)} · ${s.team.memberCount}/${s.team.maxMembers} integrantes · Trabajo compartido del equipo</p>`;
-  if (!phase) return `<section class="card">${team}<p>${s.status === 'FINISHED' ? 'El taller terminó. Aquí queda el trabajo de tu equipo.' : 'Bienvenido en un momento daremos inicio al taller.'}</p></section>${teamWork(p)}`;
+  if (!phase) return `<section class="card">${team}<p>${s.status === 'FINISHED' ? 'El taller terminó. Aquí queda el trabajo de tu equipo.' : 'Bienvenido en un momento daremos inicio al taller.'}</p></section>${teamWork(p)}${incidentHistory(s.incidents ?? [])}`;
   const deliverable = p.deliverables?.[phase.id];
   const data = deliverable?.data ?? {};
   const value = (name, index) => esc(index === undefined ? draft[name] ?? data[name] ?? '' : draft[`${name}.${index}`] ?? data[name]?.[index] ?? '');
@@ -55,7 +55,7 @@ export function workshopActivity(s, { draft, online, busy }) {
     case 2: body = form(`<fieldset class="field-group"><legend>Historias de usuario</legend>${[0, 1].map(i => line('stories', `Historia ${i + 1}`, 400, i, 'Como… quiero… para…')).join('')}</fieldset><fieldset class="field-group"><legend>Criterios de aceptación observables</legend>${[0, 1, 2].map(i => line('criteria', `Criterio ${i + 1}`, 300, i, 'Dado… cuando… entonces…')).join('')}</fieldset>${area('negative', 'Caso alterno o de error', 400, '¿Qué debe pasar si algo sale mal?')}`); break;
     case 3: body = `<section class="card"><h3>Alternativas simuladas</h3><ul class="option-list">${ARCHITECTURES.map(a => `<li><strong>${esc(a.title)}</strong><span>${esc(a.summary)}</span></li>`).join('')}</ul></section>` + form(`${select('architecture', 'Arquitectura elegida', ARCHITECTURES.map(a => [a.id, a.title]))}${area('data', 'Datos principales', 400)}${area('accessFlow', 'Flujo de acceso', 400, '¿Cómo entra el usuario y qué valida el sistema?')}${area('authRule', 'Regla de autorización', 300, '¿Quién puede ver o cambiar qué?')}${area('justification', 'Justificación de la decisión', 600)}`); break;
     case 4: body = `<form id="generate"><fieldset ${editable ? '' : 'disabled'}><legend>Prompt para la IA simulada</legend>${iteration > 1 ? `<p><strong>Iteración ${iteration}/${MAX_ITERATIONS}.</strong> Ajusten el prompt con lo aprendido en la verificación.</p>` : ''}<label>Prompt<textarea name="prompt" maxlength="6000" class="prompt-area">${esc(draft.prompt ?? latest?.prompt ?? versions.at(-1)?.prompt ?? composedPrompt(p))}</textarea></label><p class="muted">Incluye contexto, alcance, arquitectura y criterios de aceptación. Fixture determinista, sin IA externa. Máximo tres generaciones por iteración.</p><button type="submit" ${busy ? 'disabled' : ''}>Generar prototipo simulado</button></fieldset></form>`
-      + (latest ? `<section class="card"><h3>Versión ${versions.length} · SIMULACIÓN</h3><pre>${esc(latest.code)}</pre></section>` + form(`${area('matches', 'Qué coincide con lo pedido', 600)}${area('differs', 'Qué difiere o falta', 600)}`) : '<p class="muted">Generen una versión para revisar su correspondencia con los criterios.</p>'); break;
+      + (latest ? `<section class="card"><h3>Versión ${versions.length} · SIMULACIÓN</h3>${latest.generatedType && latest.generatedType !== latest.projectType ? '<p class="incident-flag">Comparen este resultado con el proyecto que pidieron antes de continuar.</p>' : ''}<pre>${esc(latest.code)}</pre></section>` + form(`${area('matches', 'Qué coincide con lo pedido', 600)}${area('differs', 'Qué difiere o falta', 600)}`) : '<p class="muted">Generen una versión para revisar su correspondencia con los criterios.</p>'); break;
     case 5: body = (latest ?? versions.at(-1) ? `<section class="card"><h3>Escenarios de prueba simulados</h3><ul class="scenario-list">${(latest ?? versions.at(-1)).scenarios.map(sc => `<li class="${sc.result === 'PASS' ? 'is-pass' : 'is-fail'}"><strong>${sc.result === 'PASS' ? 'Pasa' : 'Falla'}</strong><span>${esc(sc.name)}</span><small>${esc(sc.detail)}</small></li>`).join('')}</ul></section>` : '')
       + form(`${select('category', 'Categoría', FINDING_CATEGORIES.map(c => [c, c]))}${select('severity', 'Severidad', SEVERITIES.map(c => [c, c]))}${area('description', 'Hallazgo y evidencia', 600)}${area('impact', 'Impacto', 400)}${area('regressionTest', 'Prueba de regresión', 600, 'Qué prueba demostraría que quedó corregido')}`); break;
     case 6: body = form(`${select('decision', 'Decisión', RELEASE_DECISIONS.map(d => [d.id, d.title]))}${area('conditions', 'Condiciones (si publican con condiciones)', 400)}${area('residualRisk', 'Riesgo residual', 400)}${area('rollback', 'Plan de reversión', 400)}${area('improvement', 'Mejora para la siguiente iteración', 400)}<label class="checkbox-line"><input type="checkbox" name="checklist" ${(draft.checklist ?? data.checklist) ? 'checked' : ''}> Revisamos pendientes, riesgos y limitaciones de la simulación.</label>`)
@@ -63,10 +63,39 @@ export function workshopActivity(s, { draft, online, busy }) {
   }
   const stageNote = s.status === 'PAUSED' ? 'La sesión está en pausa.' : { THEORY: 'Sigue la explicación del conferencista. La práctica se habilitará al terminar.', REFLECTION: 'Reflexión: compartan sus hallazgos con el grupo. La entrega queda en lectura.', CLOSED: 'Fase cerrada: solo lectura.' }[s.phaseStage] ?? '';
   const status = deliverable ? `<p class="deliverable-status status-${deliverable.status}" role="status"><strong>${DELIVERABLE_STATUS[deliverable.status]}</strong>${deliverable.review?.comment ? ` · ${esc(deliverable.review.comment)}` : ''}</p>` : '';
-  return `<section class="card phase-brief"><p class="muted">Fase ${phase.id}/${PHASES.length} · ${STAGE_LABELS[s.phaseStage] ?? ''}</p><h2>${esc(phase.title)}</h2><p><strong>Objetivo:</strong> ${esc(phase.objective)}</p>${s.phaseStage === 'THEORY' ? `<p>${esc(phase.theory)}</p>` : ''}<ol class="phase-steps">${phase.instructions.map(i => `<li>${esc(i)}</li>`).join('')}</ol><p><strong>Evidencia esperada:</strong> ${esc(phase.deliverable)}</p><p><strong>Terminada cuando:</strong> ${esc(phase.acceptanceCriteria)}</p>${stageNote ? `<p class="phase-moment">${stageNote}</p>` : ''}</section><section class="card">${team}${status}${body}</section>${teamWork(p, phase.id)}`;
+  const incidents = s.incidents ?? [];
+  return `${incidents.filter(i => i.phase === phase.id).map(i => incidentPanel(i, { editable, busy, draft })).join('')}<section class="card phase-brief"><p class="muted">Fase ${phase.id}/${PHASES.length} · ${STAGE_LABELS[s.phaseStage] ?? ''}</p><h2>${esc(phase.title)}</h2><p><strong>Objetivo:</strong> ${esc(phase.objective)}</p>${s.phaseStage === 'THEORY' ? `<p>${esc(phase.theory)}</p>` : ''}<ol class="phase-steps">${phase.instructions.map(i => `<li>${esc(i)}</li>`).join('')}</ol><p><strong>Evidencia esperada:</strong> ${esc(phase.deliverable)}</p><p><strong>Terminada cuando:</strong> ${esc(phase.acceptanceCriteria)}</p>${stageNote ? `<p class="phase-moment">${stageNote}</p>` : ''}</section><section class="card">${team}${status}${body}</section>${teamWork(p, phase.id)}${incidentHistory(incidents.filter(i => i.phase !== phase.id))}`;
 }
 // Entregas de las demás fases, en lectura, para que el equipo mantenga la trazabilidad.
 function teamWork(project, except) {
   const items = PHASES.filter(phase => phase.id !== except && project.deliverables?.[phase.id]).map(phase => `<details><summary>${phase.id}. ${esc(phase.title)} · ${DELIVERABLE_STATUS[project.deliverables[phase.id].status]}</summary><pre class="deliverable-text">${esc(deliverableText(project, phase.id))}</pre></details>`);
   return items.length ? `<section class="card"><h2>Trabajo del equipo</h2>${items.join('')}</section>` : '';
+}
+
+const INCIDENT_STATUS = { revealed: 'Por responder', acknowledged: 'Respuesta registrada', resolved: 'Resuelto', discussed: 'Discutido en el auditorio' };
+// Incidente revelado para el equipo: decidir y justificar; la respuesta esperada llega en la reflexión.
+function incidentPanel(incident, { editable, busy, draft }) {
+  const open = editable && ['revealed', 'acknowledged'].includes(incident.status);
+  const chosen = draft[`incident-${incident.code}-choice`] ?? incident.response?.choice;
+  return `<section class="card incident-card severity-${esc(incident.severity.toLowerCase())}" aria-label="Incidente de tu equipo">
+    <p class="incident-eyebrow"><span>Incidente de tu equipo</span><span class="incident-severity">${esc(incident.severity)} · ${esc(incident.category)}</span></p>
+    <h2>${esc(incident.title)}</h2>
+    <p><strong>Síntoma:</strong> ${esc(incident.symptom)}</p><p><strong>Contexto:</strong> ${esc(incident.context)}</p><p>${esc(incident.privateDescription)}</p><p class="muted">${esc(incident.impact)}</p>
+    <form class="incident-form" data-incident="${esc(incident.code)}"><fieldset ${open ? '' : 'disabled'}><legend>¿Qué decide el equipo?</legend>
+      ${incident.choices.map(choice => `<label class="incident-choice"><input type="radio" name="choice" value="${esc(choice.id)}" ${chosen === choice.id ? 'checked' : ''} required> <span>${esc(choice.text)}</span></label>`).join('')}
+      <label>Justificación<textarea name="justification" maxlength="600" placeholder="¿Por qué esta decisión?">${esc(draft[`incident-${incident.code}-justification`] ?? incident.response?.justification ?? '')}</textarea></label>
+      <button type="submit" ${busy ? 'disabled' : ''}>${incident.response ? 'Actualizar respuesta' : 'Registrar respuesta'}</button>
+    </fieldset></form>
+    <p class="deliverable-status status-${incident.status === 'revealed' ? 'needs_review' : 'submitted'}">${INCIDENT_STATUS[incident.status]}</p>
+    ${incidentFeedback(incident)}
+  </section>`;
+}
+function incidentFeedback(incident) {
+  const f = incident.feedback;
+  if (!f) return '';
+  return `<div class="incident-feedback"><h3>Aprendizaje</h3><p><strong>${esc(f.learningPoint)}</strong></p><p>${esc(f.expectedReasoning)}</p><p class="muted">Se pudo prevenir o detectar en: ${esc(f.preventedIn.join(', '))} · Controles: ${esc(f.relatedControls.join(', '))}</p></div>`;
+}
+function incidentHistory(incidents) {
+  if (!incidents.length) return '';
+  return `<section class="card"><h2>Incidentes del equipo</h2>${incidents.map(i => `<details><summary>${esc(i.code)} · ${esc(i.title)} · ${INCIDENT_STATUS[i.status]}</summary><p>${esc(i.privateDescription)}</p>${i.response ? `<p><strong>Decisión:</strong> ${esc(i.choices.find(c => c.id === i.response.choice)?.text ?? '')}<br>${esc(i.response.justification)}</p>` : ''}${incidentFeedback(i)}</details>`).join('')}</section>`;
 }

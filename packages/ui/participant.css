@@ -161,3 +161,16 @@ body[data-view=participant] .deliverable-text{font-size:13px;max-height:320px}
 body[data-view=participant] #timer.is-expired{color:#ffd17d}
 /* El mapa de seis fases se resume en la misión; en el taller del móvil se omite la cuadrícula. */
 body[data-view=participant][data-screen=activity] #app>.grid{display:none}
+
+/* Incidente del equipo: destacado sin alarmar; la severidad marca el borde. */
+body[data-view=participant] .incident-card{border:1.5px solid #ffd17d88;background:linear-gradient(160deg,#3a2f0a40,#0a2a1ccc)}
+body[data-view=participant] .incident-card.severity-alta,body[data-view=participant] .incident-card.severity-crítica{border-color:#ffb59acc}
+body[data-view=participant] .incident-eyebrow{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 6px;color:#ffd17d;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+body[data-view=participant] .incident-card h2{margin:0 0 10px}
+body[data-view=participant] .incident-form fieldset{border:0;margin:12px 0 0;padding:0;min-width:0}
+body[data-view=participant] .incident-form legend{font-weight:750;margin-bottom:8px}
+body[data-view=participant] .incident-choice{display:flex;gap:10px;align-items:flex-start;margin:0 0 8px;padding:10px 12px;border:1px solid #2b5a45;border-radius:10px}
+body[data-view=participant] .incident-choice input{width:auto;margin:4px 0 0}
+body[data-view=participant] .incident-feedback{margin-top:12px;padding:12px 14px;border-left:3px solid #c9fa72;background:#c9fa7214;border-radius:0 10px 10px 0}
+body[data-view=participant] .incident-feedback h3{margin:0 0 6px}
+body[data-view=participant] .incident-flag{padding:8px 12px;border-radius:10px;background:#ffd17d24;color:#ffd17d;font-weight:600}

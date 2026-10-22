@@ -157,3 +157,21 @@ body[data-view=presenter] #timer{margin:0 0 8px;font-size:clamp(2.6rem,5vw,3.8re
 body[data-view=presenter] #timer.is-expired{color:var(--warn)}
 .team-members{display:inline-flex;align-items:center;gap:5px}
 .team-members .ui-icon{width:14px;height:14px}
+
+/* Incidentes en Studio. */
+.incident-list{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.incident-row{padding:14px 16px;border:1px solid var(--studio-line);border-left:4px solid #ffd17d;border-radius:12px;background:#ffffff08}
+.incident-row.severity-alta,.incident-row.severity-crítica{border-left-color:#ffb59a}
+.incident-row-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.incident-code{font-family:ui-monospace,monospace;font-size:13px;color:var(--studio-lime)}
+.incident-status{margin-left:auto;padding:4px 10px;border-radius:999px;background:#ffffff12;font-size:13px;font-weight:650}
+.incident-status.status-revealed{color:#ffd17d}.incident-status.status-acknowledged{color:var(--studio-green)}.incident-status.status-resolved,.incident-status.status-discussed{color:var(--studio-lime)}
+.incident-row .actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px}
+.incident-row .actions button{margin:0;padding:8px 12px;font-size:14px;display:inline-flex;align-items:center;gap:8px}
+.incident-row .actions .ui-icon{width:16px;height:16px}
+.incident-live{border-color:#ffd17d99;box-shadow:0 0 30px #ffd17d22}
+.incident-live .actions button{margin:6px 8px 0 0}
+.incident-assign{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;gap:12px;align-items:end}
+.incident-assign select{margin:6px 0 0}
+.incident-assign button{margin:0;height:46px}
+@media(max-width:700px){.incident-assign{grid-template-columns:minmax(0,1fr)}}

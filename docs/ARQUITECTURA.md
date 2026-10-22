@@ -139,3 +139,14 @@ La tabla team_reviews (esquema v8) persiste esa vista con versión independiente
 Cada equipo guarda `project.deliverables[fase] = { status, data, updatedAt, submittedAt, review, revisions }` con estados `draft`, `submitted`, `accepted` y `needs_review`. Solo `submitted` y `accepted` cuentan como avance. El prototipo simulado (`services/api/deliverables.mjs`) se genera según el proyecto y la arquitectura elegidos, de modo que el resultado normal siempre corresponde a lo pedido.
 
 La migración v9 no asigna equivalencias entre modelos: las sesiones del modelo de cinco fases vuelven a WAITING con `legacyReset`, el trabajo previo de cada equipo pasa a `legacyProject` con `needsReconciliation: true` y las notas del conferencista se trasladan a `presenter_phase_notes_legacy`. Antes de migrar una base con datos ejecuta `npm run backup`.
+
+## Incidentes (P0-11 a P0-17)
+
+El catálogo `services/api/incidents.mjs` no se sirve como archivo estático: contiene descripciones privadas y respuestas esperadas. `incident_assignments` guarda una fila por equipo e incidente (estado `assigned` → `revealed` → `acknowledged` → `resolved`/`discussed`, origen automático o manual y respuesta). `incident_shares` guarda la intervención visible en el auditorio con versión propia.
+
+Al pasar a práctica (PRACTICE o ITERATE) el servidor ejecuta `planAssignments`: semilla SHA-256 de sesión, equipo y fase, equipos con menos incidentes primero, máximo 2 por equipo y 1 crítico (`INCIDENT_DEFAULTS`, ajustable con `incidentConfig` en los datos de la sesión). Es idempotente y respeta las asignaciones manuales.
+
+`POST /api/studio/sessions/:id/incidents` admite ASSIGN, UNASSIGN, REVEAL, HIDE y RESOLVE (teamId, code), y SHARE, LEARNING y END_SHARE con `expectedVersion` de la difusión. Revelar y compartir solo se permite en la fase del incidente; compartir retira la revisión de entregas en pantalla. `POST /api/sessions/:id/incident-response` (participante) registra `choice` y `justification` durante la práctica de esa fase.
+
+Vistas: el participante recibe solo los incidentes revelados de su equipo y la retroalimentación (respuesta esperada, aprendizaje y fases de prevención) después de la reflexión o de la discusión; el proyector recibe descripción genérica, categoría, pregunta y nombre del equipo solo mientras se comparte, y el aprendizaje tras LEARNING; Studio recibe todo. Las variantes `phantom_dependency` y `requirements_mismatch` alteran la generación del equipo asignado y quedan marcadas en la versión; `assertionless_test` agrega una prueba verde sin aserciones al asignarse. Eliminar un equipo elimina sus asignaciones y retira su intervención del auditorio.
+
