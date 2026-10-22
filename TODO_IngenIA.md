@@ -33,6 +33,8 @@
 
 ### Decisiones vigentes
 
+- [x] Crear repositorio público del proyecto: [alexramdesigner/IngenIA](https://github.com/alexramdesigner/IngenIA). Mantener fuera `.env`, datos de participantes y respaldos.
+
 - [x] Preparar publicación pública en GitHub: revisar historial y archivos para excluir credenciales, `.env`, datos, respaldos y dependencias locales; verificar sintaxis y 37 pruebas. Incluir el estado actual del taller de seis fases AI-DSE.
 
 - [x] Corregir METHOD_NOT_ALLOWED al borrar equipos/integrantes: el proceso local seguía ejecutando una versión anterior sin team-admin. Reiniciar con `npm run dev` para recargar cambios del servidor automáticamente. 33 pruebas aprobadas, incluida eliminación, revocación de accesos y liberación de nombre; sin borrar datos actuales para verificar.
