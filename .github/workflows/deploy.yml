@@ -1,0 +1,37 @@
+name: Despliegue
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: deploy-ingenia
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm run check
+      - run: npm test
+      - name: Empaquetar
+        run: tar -czf "$RUNNER_TEMP/ingenia.tgz" package.json services packages apps
+      - name: Desplegar en ingenia.inggen.com
+        env:
+          SSH_KEY: ${{ secrets.INGENIA_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.INGENIA_KNOWN_HOSTS }}
+        run: |
+          if [ -z "$SSH_KEY" ] || [ -z "$KNOWN_HOSTS" ]; then
+            echo "::warning::Faltan los secrets INGENIA_SSH_KEY / INGENIA_KNOWN_HOSTS; no se despliega."
+            exit 0
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/ingenia_key
+          chmod 600 ~/.ssh/ingenia_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/ingenia_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            ingenia@100.57.14.74 < "$RUNNER_TEMP/ingenia.tgz"
