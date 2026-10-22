@@ -8,7 +8,7 @@ const selection = {
   home: 'fill/house-fill', activities: 'fill/squares-four-fill', target: 'fill/target-fill', ranking: 'fill/ranking-fill', hourglass: 'fill/hourglass-medium-fill',
   gauge: 'fill/gauge-fill', teams: 'fill/users-three-fill', megaphone: 'fill/megaphone-fill', teacher: 'fill/chalkboard-teacher-fill', projector: 'fill/projector-screen-fill',
   sidebar: 'regular/sidebar-simple', menu: 'regular/list', logout: 'fill/sign-out-fill', pause: 'fill/pause-fill', play: 'fill/play-fill', extend: 'fill/plus-circle-fill',
-  advance: 'fill/skip-forward-fill', iterate: 'fill/arrows-clockwise-fill', reopen: 'fill/arrow-counter-clockwise-fill', finish: 'fill/flag-checkered-fill', lightning: 'fill/lightning-fill', warning: 'fill/warning-fill', check: 'fill/check-circle-fill', trash: 'fill/trash-fill', live: 'fill/broadcast-fill',
+  advance: 'fill/skip-forward-fill', iterate: 'fill/arrows-clockwise-fill', reopen: 'fill/arrow-counter-clockwise-fill', finish: 'fill/flag-checkered-fill', lightning: 'fill/lightning-fill', warning: 'fill/warning-fill', gear: 'fill/gear-six-fill', check: 'fill/check-circle-fill', trash: 'fill/trash-fill', live: 'fill/broadcast-fill',
   caret: 'bold/caret-right-bold', monitor: 'regular/presentation', qrline: 'regular/qr-code', back: 'regular/arrow-left', forward: 'regular/arrow-right', expand: 'regular/arrows-out', collapse: 'regular/arrows-in'
 };
 const icons = Object.fromEntries(Object.entries(selection).map(([key, file]) => {

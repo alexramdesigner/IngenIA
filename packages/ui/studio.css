@@ -175,3 +175,18 @@ body[data-view=presenter] #timer.is-expired{color:var(--warn)}
 .incident-assign select{margin:6px 0 0}
 .incident-assign button{margin:0;height:46px}
 @media(max-width:700px){.incident-assign{grid-template-columns:minmax(0,1fr)}}
+
+/* Mantenimiento: reinicio de sesión, acción destructiva con confirmación escrita. */
+.maintenance-panel{border-color:#8a4b3a}
+.maintenance-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:16px 0}
+.maintenance-columns h3{margin:0 0 6px;font-size:1rem}
+.maintenance-columns ul{margin:0;padding-left:20px;line-height:1.6;color:#d7e9df}
+.maintenance-warning{padding:10px 14px;border-radius:10px;background:#ffd17d24;color:#ffd17d;font-weight:600}
+.maintenance-form{display:grid;gap:12px;max-width:520px}
+.maintenance-form .checkbox-line{display:flex;gap:10px;align-items:center}
+.maintenance-form .checkbox-line input{width:auto;margin:0}
+.maintenance-form input[name=confirmation]{margin-top:6px;font-family:ui-monospace,monospace;letter-spacing:.04em}
+.danger-button{display:inline-flex;align-items:center;justify-content:center;gap:10px;margin:0;background:#b9442e;color:#fff}
+.danger-button .ui-icon{width:18px;height:18px}
+.danger-button:not(:disabled):hover{background:#d4553c}
+@media(max-width:700px){.maintenance-columns{grid-template-columns:minmax(0,1fr)}}

@@ -1,8 +1,8 @@
 import http from 'node:http';
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { resolve, extname } from 'node:path';
+import { resolve, extname, dirname, join } from 'node:path';
 import { reviewSnapshot } from './team-review.mjs';
 import { openStore, transaction } from './store.mjs';
 import { ApiError, transition, requireActivePhase, permissions } from './domain.mjs';
@@ -19,7 +19,10 @@ const text = (value, max = 100) => typeof value === 'string' && value.length > 0
 export function createApp(options = {}) {
   const password = options.password ?? process.env.PRESENTER_PASSWORD;
   if (!password || password.length < 12) throw new Error('Ejecuta npm run setup: PRESENTER_PASSWORD requiere al menos 12 caracteres.');
-  const db = openStore(options.database ?? process.env.DATABASE_PATH ?? './data/ingenia.sqlite');
+  const databasePath = options.database ?? process.env.DATABASE_PATH ?? './data/ingenia.sqlite';
+  const db = openStore(databasePath);
+  // Reinicio de sesión desde Studio para ensayos; ALLOW_SESSION_RESET=false lo bloquea el día del evento.
+  const resetAllowed = String(options.allowSessionReset ?? process.env.ALLOW_SESSION_RESET ?? 'true') !== 'false';
   const ttl = Number(process.env.TOKEN_TTL_SECONDS ?? 28800) * 1000;
   if (!Number.isFinite(ttl) || ttl < 60000 || ttl > 86400000) throw new Error('TOKEN_TTL_SECONDS debe estar entre 60 y 86400.');
   const secure = process.env.COOKIE_SECURE === 'true';
@@ -318,7 +321,7 @@ export function createApp(options = {}) {
       if (path === '/api/me' && req.method === 'GET') {
         const a = authenticate(req); return json(res, 200, { sessionId: a.session_id, role: a.role });
       }
-      const match = new RegExp(`^/api/sessions/([a-z]+)/(state|events|phase-command|phase-notes|team-review|team-admin|deliverable-review|incidents|incident-response|projector-access|report|actions/(${Object.keys(ACTION_PHASE).join('|')}))$`).exec(path);
+      const match = new RegExp(`^/api/sessions/([a-z]+)/(state|events|phase-command|phase-notes|team-review|team-admin|deliverable-review|incidents|incident-response|reset|projector-access|report|actions/(${Object.keys(ACTION_PHASE).join('|')}))$`).exec(path);
       if (match) {
         const [, id, route, action] = match;
         const actor = authenticate(req); authorize(actor, id);
@@ -485,6 +488,38 @@ export function createApp(options = {}) {
             return state(id, actor);
           });
           emitTeamProgress(id, actor.team_id, 'incident.updated'); return json(res, 200, result);
+        }
+        if (route === 'reset' && req.method === 'POST') {
+          // Deja la sesión como recién creada. Copia de seguridad previa, confirmación escrita y nunca en vivo.
+          authorize(actor, id, 'PRESENTER'); const b = await body(req);
+          if (!resetAllowed) throw new ApiError(403, 'RESET_DISABLED');
+          if (b.confirmation !== `REINICIAR ${id.toUpperCase()}`) throw new ApiError(400, 'RESET_CONFIRMATION_REQUIRED');
+          if (getSession(id).status === 'ACTIVE') throw new ApiError(409, 'RESET_SESSION_ACTIVE');
+          let backup = null;
+          if (databasePath !== ':memory:') {
+            const folder = join(dirname(resolve(databasePath)), 'backups');
+            mkdirSync(folder, { recursive: true, mode: 0o700 });
+            backup = join(folder, `antes-de-reiniciar-${id}-${new Date().toISOString().replace(/[:.]/g, '-')}.sqlite`);
+            db.prepare('VACUUM INTO ?').run(backup);
+          }
+          const participants = db.prepare("SELECT id FROM identities WHERE session_id=? AND role='PARTICIPANT'").all(id).map(r => r.id);
+          const result = transaction(db, () => {
+            const old = getSession(id);
+            for (const table of ['participant_notes', 'participant_profiles']) db.prepare(`DELETE FROM ${table} WHERE session_id=?`).run(id);
+            db.prepare("DELETE FROM tokens WHERE identity_id IN (SELECT id FROM identities WHERE session_id=? AND role='PARTICIPANT')").run(id);
+            db.prepare("DELETE FROM identities WHERE session_id=? AND role='PARTICIPANT'").run(id);
+            for (const table of ['incident_assignments', 'incident_shares', 'team_names', 'team_reviews', 'idempotency', 'events', 'phase_actions']) db.prepare(`DELETE FROM ${table} WHERE session_id=?`).run(id);
+            db.prepare('DELETE FROM teams WHERE session_id=?').run(id);
+            if (b.keepSpeakerNotes === false) db.prepare('DELETE FROM presenter_phase_notes WHERE session_id=?').run(id);
+            // La versión sigue creciendo para que ninguna pestaña abierta reutilice un estado anterior.
+            const { legacyReset, stageStartedAt, ...rest } = old;
+            db.prepare('UPDATE sessions SET data=? WHERE id=?').run(JSON.stringify({ ...rest, status: 'WAITING', activePhase: null, phaseStage: null, iteration: 1, deadline: null, remainingMs: 0, version: old.version + 1 }), id);
+            db.prepare('INSERT INTO phase_actions(session_id,actor_id,version,data,timestamp) VALUES (?,?,?,?,?)').run(id, actor.id, old.version + 1, JSON.stringify({ action: 'SESSION_RESET', participants: participants.length, keepSpeakerNotes: b.keepSpeakerNotes !== false, backup }), Date.now());
+            return state(id, actor);
+          });
+          for (const c of clients) if (participants.includes(c.actor.id)) { c.res.end(); clients.delete(c); }
+          emit(id, 'state');
+          return json(res, 200, { ...result, reset: { participants: participants.length, backup } });
         }
         if (route === 'deliverable-review' && req.method === 'POST') {
           // Studio acepta una entrega o pide revisarla; queda auditado y el equipo lo ve al instante.

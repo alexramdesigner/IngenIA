@@ -24,6 +24,14 @@ Resultado de referencia (22 oct 2026, portátil de desarrollo): 300/300 registro
 
 Para sostener esa carga, cada difusión calcula una sola instantánea compartida, las entregas de un equipo solo se envían a sus integrantes y las actualizaciones de Studio y proyector por entregas o conexiones se agrupan cada 250 ms. Repetir la prueba en el servidor de producción y desde la red del auditorio antes del evento.
 
+## Reiniciar una sesión después de un ensayo
+
+Studio → **Mantenimiento** deja la sesión en la que se ingresó como recién creada: borra equipos, participantes (cierra sus accesos), entregas, notas personales, incidentes, revisiones, eventos e historial, y vuelve el taller a «En espera». Conserva el código y horario, el acceso de Studio y del proyector, la otra sesión y, si se marca, las notas de explicación.
+
+Protecciones: exige escribir `REINICIAR TARDE` o `REINICIAR NOCHE`; no funciona con la sesión en vivo (pausar o finalizar antes); guarda antes una copia `data/backups/antes-de-reiniciar-<sesión>-<fecha>.sqlite`; queda registrado como `SESSION_RESET`. Para el día del evento definir `ALLOW_SESSION_RESET=false` y reiniciar el servicio: el servidor rechazará cualquier reinicio.
+
+Recuperar un reinicio accidental: detener el servicio, copiar la base actual aparte, restaurar el archivo `antes-de-reiniciar-…` como `DATABASE_PATH` y volver a arrancar.
+
 ## Respaldos y recuperación
 
 `npm run backup` crea una copia SQLite consistente en `data/backups`. Validar el archivo con `PRAGMA integrity_check` y conservarlo en almacenamiento con permisos restringidos. Programación externa y cifrado no están configurados. En contenedor, el volumen conserva los datos; el script de backup se ejecuta desde el host con acceso a la base o se añade como tarea operativa específica.

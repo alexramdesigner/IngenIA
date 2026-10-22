@@ -15,6 +15,7 @@ services:
       RATE_LIMIT_IP_PER_MIN: ${RATE_LIMIT_IP_PER_MIN:-6000}
       RATE_LIMIT_CLIENT_PER_MIN: ${RATE_LIMIT_CLIENT_PER_MIN:-600}
       RATE_LIMIT_CREDENTIALS_PER_MIN: ${RATE_LIMIT_CREDENTIALS_PER_MIN:-20}
+      ALLOW_SESSION_RESET: ${ALLOW_SESSION_RESET:-true}
       DATABASE_PATH: /app/data/ingenia.sqlite
     volumes:
       - ingenia-data:/app/data
