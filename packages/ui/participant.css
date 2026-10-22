@@ -174,3 +174,10 @@ body[data-view=participant] .incident-choice input{width:auto;margin:4px 0 0}
 body[data-view=participant] .incident-feedback{margin-top:12px;padding:12px 14px;border-left:3px solid #c9fa72;background:#c9fa7214;border-radius:0 10px 10px 0}
 body[data-view=participant] .incident-feedback h3{margin:0 0 6px}
 body[data-view=participant] .incident-flag{padding:8px 12px;border-radius:10px;background:#ffd17d24;color:#ffd17d;font-weight:600}
+
+/* PWA: zonas seguras del notch en modo app, página sin conexión e instalación. */
+body[data-view=participant]{padding-top:env(safe-area-inset-top,0px)}
+body[data-view=participant] .install-card button{width:100%}
+body[data-view=participant] .offline-page{display:grid;justify-items:center;gap:6px;max-width:420px;margin:12vh auto 0;padding:24px;text-align:center}
+body[data-view=participant] .offline-icon{border-radius:22px}
+body[data-view=participant] .offline-retry{display:block;width:100%;margin-top:14px;padding:14px 18px;border-radius:12px;background:var(--lime);color:#102312;font-weight:700;text-decoration:none}

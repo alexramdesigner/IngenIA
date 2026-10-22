@@ -618,8 +618,12 @@ export function createApp(options = {}) {
         issue(res, { id: row.identity_id }); return json(res, 200, { ok: true });
       }
       if (!['GET', 'HEAD'].includes(req.method)) throw new ApiError(405, 'METHOD_NOT_ALLOWED');
-      const aliases = { '/': '/apps/participant/index.html', '/studio': '/apps/presenter/index.html', '/presenter': '/apps/presenter/index.html', '/projector': '/apps/projector/index.html' };
-      const target = aliases[path] ?? path;
+      const aliases = { '/': '/apps/participant/index.html', '/studio': '/apps/presenter/index.html', '/presenter': '/apps/presenter/index.html', '/projector': '/apps/projector/index.html', '/offline.html': '/apps/participant/offline.html' };
+      // PWA: manifiesto y service worker en la raíz para que su alcance sea todo el sitio.
+      const pwa = { '/manifest.webmanifest': '/apps/participant/manifest.webmanifest', '/sw.js': '/apps/participant/sw.js', '/favicon.ico': '/packages/ui/assets/icons/favicon-32.png' };
+      // Los archivos PWA solo se sirven por su ruta pública, nunca por su ubicación interna.
+      if ((Object.values(pwa).includes(path) || path === aliases['/offline.html']) && !path.startsWith('/packages/')) throw new ApiError(404, 'NOT_FOUND');
+      const target = aliases[path] ?? pwa[path] ?? path;
       if (['/apps/presenter/index.html', '/apps/projector/index.html'].includes(target)) {
         // La página de ingreso es pública; un participante autenticado no puede usarla como consola.
         let actor;
@@ -634,12 +638,12 @@ export function createApp(options = {}) {
           if (!privileged) throw new ApiError(403, 'FORBIDDEN');
         }
       }
-      if (!['/packages/ui/assets/IMAGOTIPO_HORIZONTAL_BLANCO.png','/packages/ui/assets/fondo-verde-tecnologico.png'].includes(target) && !/^\/(apps|packages)\/[a-zA-Z0-9/_.-]+\.(html|css|mjs)$/.test(target)) throw new ApiError(404, 'NOT_FOUND');
+      if (!['/packages/ui/assets/IMAGOTIPO_HORIZONTAL_BLANCO.png','/packages/ui/assets/fondo-verde-tecnologico.png'].includes(target) && !Object.values(pwa).includes(target) && !/^\/packages\/ui\/assets\/icons\/[a-z0-9-]+\.png$/.test(target) && !/^\/(apps|packages)\/[a-zA-Z0-9/_.-]+\.(html|css|mjs)$/.test(target)) throw new ApiError(404, 'NOT_FOUND');
       if (target.endsWith('.html') && !Object.values(aliases).includes(target)) throw new ApiError(404, 'NOT_FOUND');
       const file = resolve(root, `.${target}`);
       if (!file.startsWith(root) || target.includes('..')) throw new ApiError(404, 'NOT_FOUND');
       let content; try { content = readFileSync(file); } catch { throw new ApiError(404, 'NOT_FOUND'); }
-      res.writeHead(200, { 'Content-Type': ({ '.png': 'image/png', '.html': 'text/html; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' })[extname(file)] });
+      res.writeHead(200, { 'Content-Type': ({ '.png': 'image/png', '.html': 'text/html; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.webmanifest': 'application/manifest+json; charset=utf-8' })[extname(file)], ...(path === '/sw.js' ? { 'Service-Worker-Allowed': '/' } : {}) });
       res.end(req.method === 'HEAD' ? undefined : content);
     } catch (error) {
       if (res.headersSent) { res.end(); return; }

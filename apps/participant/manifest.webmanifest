@@ -1,0 +1,23 @@
+{
+  "id": "/",
+  "name": "IngenIA · Crea tu primera APP con IA",
+  "short_name": "IngenIA",
+  "description": "Taller práctico de la Universidad de Cundinamarca: descubre, especifica, construye con IA simulada y verifica una app en equipo.",
+  "lang": "es-CO",
+  "dir": "ltr",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#071c19",
+  "theme_color": "#071c19",
+  "categories": ["education"],
+  "icons": [
+    { "src": "/packages/ui/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/packages/ui/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/packages/ui/assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Taller", "url": "/?source=pwa", "icons": [{ "src": "/packages/ui/assets/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

@@ -920,3 +920,22 @@ test('Reinicio desde Studio: respaldo previo, confirmación, nunca en vivo y sol
   const denied = await fetch(lockedBase + '/sessions/tarde/reset', { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify({ confirmation: 'REINICIAR TARDE' }) });
   assert.equal((await denied.json()).error, 'RESET_DISABLED');
 });
+test('PWA: manifiesto, service worker, iconos y página sin conexión servidos correctamente', async t => {
+  const h = await harness(t);
+  const manifest = await fetch(h.base + '/manifest.webmanifest');
+  assert.equal(manifest.status, 200); assert.match(manifest.headers.get('content-type'), /application\/manifest\+json/);
+  const data = await manifest.json();
+  assert.equal(data.display, 'standalone'); assert.equal(data.start_url, '/?source=pwa'); assert.equal(data.scope, '/');
+  assert.ok(data.icons.some(icon => icon.sizes === '512x512' && icon.purpose === 'maskable'));
+  for (const icon of data.icons) { const res = await fetch(h.base + icon.src); assert.equal(res.status, 200, icon.src); assert.equal(res.headers.get('content-type'), 'image/png'); }
+  const sw = await fetch(h.base + '/sw.js');
+  assert.equal(sw.status, 200); assert.match(sw.headers.get('content-type'), /javascript/); assert.equal(sw.headers.get('service-worker-allowed'), '/');
+  const source = await sw.text();
+  assert.match(source, /startsWith\('\/api\/'\)/);
+  for (const asset of source.match(/'\/[^']*'/g).map(x => x.slice(1, -1)).filter(x => !x.startsWith('/api') && x.length > 1 && !['/studio','/presenter','/projector','/healthz'].includes(x))) assert.equal((await fetch(h.base + asset)).status, 200, asset);
+  assert.equal((await fetch(h.base + '/offline.html')).status, 200);
+  assert.equal((await fetch(h.base + '/favicon.ico')).status, 200);
+  const page = await (await fetch(h.base + '/')).text();
+  assert.match(page, /rel="manifest" href="\/manifest.webmanifest"/); assert.match(page, /apple-touch-icon/);
+  for (const internal of ['/apps/participant/sw.js', '/apps/participant/manifest.webmanifest', '/apps/participant/offline.html']) assert.equal((await fetch(h.base + internal)).status, 404, internal);
+});

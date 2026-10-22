@@ -150,3 +150,9 @@ Al pasar a práctica (PRACTICE o ITERATE) el servidor ejecuta `planAssignments`:
 
 Vistas: el participante recibe solo los incidentes revelados de su equipo y la retroalimentación (respuesta esperada, aprendizaje y fases de prevención) después de la reflexión o de la discusión; el proyector recibe descripción genérica, categoría, pregunta y nombre del equipo solo mientras se comparte, y el aprendizaje tras LEARNING; Studio recibe todo. Las variantes `phantom_dependency` y `requirements_mismatch` alteran la generación del equipo asignado y quedan marcadas en la versión; `assertionless_test` agrega una prueba verde sin aserciones al asignarse. Eliminar un equipo elimina sus asignaciones y retira su intervención del auditorio.
 
+
+## PWA
+
+La vista de participantes es instalable. `/manifest.webmanifest` (modo `standalone`, `start_url` `/?source=pwa`, iconos 192/512 y maskable en `packages/ui/assets/icons/`) y `/sw.js` se sirven desde la raíz para que el alcance sea todo el sitio; sus archivos internos en `apps/participant/` no son accesibles directamente. El service worker precarga la interfaz y usa estrategia **red primero**: siempre sirve la versión desplegada y la caché solo responde sin conexión, con `/offline.html` como respaldo de navegación. Nunca intercepta `/api/`, la transmisión en vivo ni `/healthz`, y no ofrece Studio ni proyector sin conexión. `packages/ui/pwa.mjs` registra el worker y muestra «Instalar app» en el perfil cuando el navegador lo permite; en iPhone indica Compartir → Agregar a inicio. Al cambiar la lista de archivos precargados conviene subir `VERSION` en `sw.js` para limpiar la caché anterior.
+
+El service worker requiere HTTPS (o `localhost`); en HTTP de red local la app sigue funcionando sin él.
