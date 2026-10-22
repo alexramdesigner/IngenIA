@@ -239,14 +239,13 @@ function studioTeams(s) {
 function projectorWelcome(s) {
   const host = PRODUCTION_URL.replace(/^https?:\/\//, '');
   const schedule = s ? `${esc(s.title)} · ${s.id === 'tarde' ? '2:00–4:00 p. m.' : '6:00–8:00 p. m.'}` : '18 de noviembre de 2026 · Extensión Chía';
-  const steps = [['Escanea el código o entra a', `<strong>${esc(host)}</strong>`], ['Escribe tu nombre completo y', '<strong>tu correo institucional</strong>'], ['Únete a tu equipo o créalo:', '<strong>máximo seis integrantes</strong>'], ['Elige tu sesión y espera', '<strong>la señal del conferencista</strong>']];
+  const steps = [['qrline', 'Escanea el código o entra a', esc(host)], ['person', 'Escribe tu nombre completo', 'y <strong>tu correo</strong>'], ['teams', 'Únete a tu equipo o créalo:', '<strong>máximo seis integrantes</strong>'], ['monitor', 'Elige tu sesión y espera', '<strong>la señal del conferencista</strong>']];
   return `<div class="pw-screen">
   <section class="pw-intro">
     <p class="pw-eyebrow">${icon('live')}<span>${schedule}</span></p>
-    <h1>Bienvenidos a<br><span class="pw-highlight">Crea tu primera APP con IA</span></h1>
-    <p class="pw-lead">Un taller práctico para descubrir, especificar, construir con IA simulada y verificar una app en equipo, con el modelo INGGEN AI-DSE.</p>
-    <ol class="pw-steps">${steps.map(([a, b], i) => `<li><span class="pw-step-number">${i + 1}</span><span>${a} ${b}</span></li>`).join('')}</ol>
-    <ul class="pw-phases" aria-label="Fases del taller">${PHASES.map(p => `<li>${p.id}. ${esc(p.title)}</li>`).join('')}</ul>
+    <h1><span class="pw-hello">Bienvenidos a</span><span class="pw-title">Crea tu primera <span class="pw-highlight">APP con IA<svg class="pw-swoosh" viewBox="0 0 300 24" preserveAspectRatio="none" aria-hidden="true"><path d="M4 18 C 70 8, 170 4, 296 9" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg></span></span></h1>
+    <p class="pw-lead">Un taller práctico para descubrir, especificar, construir con IA simulada<br>y verificar una app en equipo, con el modelo AI-DSE.</p>
+    <ol class="pw-steps">${steps.map(([iconName, first, second], i) => `<li><span class="pw-step-number">${i + 1}</span><span class="pw-step-icon">${icon(iconName)}</span><span class="pw-step-text">${first}<br>${i === 0 ? `<strong>${second}</strong>` : second}</span><span class="pw-step-caret">${icon('caret')}</span></li>`).join('')}</ol>
   </section>
   <aside class="pw-access" aria-label="Acceso para participantes">
     <p class="pw-access-title">Regístrate desde tu celular</p>
@@ -254,7 +253,7 @@ function projectorWelcome(s) {
     <p class="pw-url">${esc(host)}</p>
     <p class="pw-caption">Abre la cámara y apunta al código</p>
   </aside>
-  ${s ? `<div class="pw-live"><span>${icon('teams')}<strong>${s.summary.participants}</strong> registrados</span><span>${icon('activities')}<strong>${s.summary.total}</strong> equipos</span><span>${icon('live')}<strong>${s.summary.online ?? 0}</strong> conectados ahora</span><span class="pw-wait">En un momento daremos inicio al taller</span></div>` : '<p class="pw-unlinked">Pantalla sin vincular · Ábrela desde Studio → Proyección para ver el taller en vivo.</p>'}
+  ${s ? `<div class="pw-live"><span>${icon('teams')}<strong>${s.summary.participants}</strong> registrados</span><span>${icon('activities')}<strong>${s.summary.total}</strong> equipos</span><span>${icon('live')}<strong>${s.summary.online ?? 0}</strong> conectados ahora</span><span class="pw-wait">En un momento daremos inicio al taller</span></div>` : ''}
 </div>`;
 }
 function projectorScreen(s) {
