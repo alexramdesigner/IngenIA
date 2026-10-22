@@ -137,3 +137,27 @@ body[data-view=participant] .student-greeting .student-role-label{margin:0 0 5px
 body[data-view=participant] .platform-footer .footer-connection{margin-left:auto;color:var(--lime);font-size:12px;text-align:right}
 body[data-view=participant][data-screen=login] .platform-footer .footer-connection{display:none}
 @media(max-width:600px){.platform-footer .footer-details{flex-basis:100%}}
+
+/* Taller AI-DSE: misión, entregable y estado. */
+body[data-view=participant] .phase-brief h2{margin:4px 0 10px}
+body[data-view=participant] .phase-steps{margin:8px 0 14px;padding-left:22px;line-height:1.5}
+body[data-view=participant] .phase-steps li{margin:4px 0}
+body[data-view=participant] .field-group{margin:0 0 12px;padding:12px 14px;border:1px solid #2b5a45;border-radius:12px}
+body[data-view=participant] .field-group legend{padding:0 6px;font-weight:650}
+body[data-view=participant] #activity fieldset,body[data-view=participant] #generate fieldset{border:0;margin:0;padding:0;min-width:0}
+body[data-view=participant] #activity legend,body[data-view=participant] #generate legend{font-size:1.1rem;font-weight:750;margin-bottom:10px}
+body[data-view=participant] .prompt-area{min-height:220px;font-size:14px;line-height:1.5}
+body[data-view=participant] .checkbox-line{display:flex;gap:10px;align-items:flex-start}
+body[data-view=participant] .checkbox-line input{margin-top:4px}
+body[data-view=participant] .deliverable-status{display:inline-block;margin:6px 0 14px;padding:6px 12px;border-radius:999px;background:#ffffff12;font-size:14px}
+body[data-view=participant] .deliverable-status.status-submitted{background:#2fd36b26;color:#8ff0b4}
+body[data-view=participant] .deliverable-status.status-accepted{background:#c9fa7233;color:#d8ff8a}
+body[data-view=participant] .deliverable-status.status-needs_review{background:#ffd17d2e;color:#ffd17d}
+body[data-view=participant] .option-list,body[data-view=participant] .scenario-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+body[data-view=participant] .option-list li,body[data-view=participant] .scenario-list li{display:grid;gap:2px;padding:10px 12px;border:1px solid #2b5a45;border-radius:10px}
+body[data-view=participant] .scenario-list li.is-pass strong{color:#2fd36b}
+body[data-view=participant] .scenario-list li.is-fail strong{color:#ffb59a}
+body[data-view=participant] .deliverable-text{font-size:13px;max-height:320px}
+body[data-view=participant] #timer.is-expired{color:#ffd17d}
+/* El mapa de seis fases se resume en la misión; en el taller del móvil se omite la cuadrícula. */
+body[data-view=participant][data-screen=activity] #app>.grid{display:none}

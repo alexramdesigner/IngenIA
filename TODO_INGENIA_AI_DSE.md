@@ -13,18 +13,18 @@
 
 ## P0 · Datos, fases y sincronización
 
-- [ ] **P0-01. Inspeccionar arquitectura antes de cambiar:** localizar configuración de fases, componentes, APIs, websockets/SSE, fixtures, persistencia, políticas de acceso y pruebas. Proponer migración compatible. No reemplazar datos de sesiones existentes a ciegas.
-- [ ] **P0-02. Catálogo único de seis fases** (`id` estable, `order`, `slug`, `title`, `objective`, `theory`, `mission`, `deliverable`, `acceptanceCriteria`, `duration`, `incidentCategories`):
+- [x] **P0-01. Inspeccionar arquitectura antes de cambiar:** localizar configuración de fases, componentes, APIs, websockets/SSE, fixtures, persistencia, políticas de acceso y pruebas. Proponer migración compatible. No reemplazar datos de sesiones existentes a ciegas.
+- [x] **P0-02. Catálogo único de seis fases** (`id` estable, `order`, `slug`, `title`, `objective`, `theory`, `mission`, `deliverable`, `acceptanceCriteria`, `duration`, `incidentCategories`):
   1. Descubrimiento (`discovery`)
   2. Especificación (`specification`)
   3. Arquitectura (`architecture`)
   4. Construcción con IA (`construction`)
   5. Verificación (`verification`)
   6. Entrega y aprendizaje (`delivery`)
-- [ ] **P0-03. Reemplazar las cinco etiquetas anteriores** en UI, API, estadísticas, barra de progreso, exportaciones, fixtures, mensajes, puntajes y validación de avance. Migración explícita de entregables antiguos (`Ideación`, `Generar app`, `Auditar`, `Corregir`, `Publicar`), sin asignar automáticamente una equivalencia dudosa; registrar si hace falta reconciliación manual.
-- [ ] **P0-04. Modelar subestado didáctico** por fase: `theory`, `practice`, `reflection`, `closed`; Studio es la fuente de autoridad. En teoría se muestra contenido y la actividad permanece bloqueada; en práctica se habilita; en reflexión se comparten hallazgos; en cerrado solo lectura.
+- [x] **P0-03. Reemplazar las cinco etiquetas anteriores** en UI, API, estadísticas, barra de progreso, exportaciones, fixtures, mensajes, puntajes y validación de avance. Migración explícita de entregables antiguos (`Ideación`, `Generar app`, `Auditar`, `Corregir`, `Publicar`), sin asignar automáticamente una equivalencia dudosa; registrar si hace falta reconciliación manual.
+- [x] **P0-04. Modelar subestado didáctico** por fase: `theory`, `practice`, `reflection`, `closed`; Studio es la fuente de autoridad. En teoría se muestra contenido y la actividad permanece bloqueada; en práctica se habilita; en reflexión se comparten hallazgos; en cerrado solo lectura.
 - [ ] **P0-05. Sincronización en tiempo real**: evento con `sessionId`, `phaseId`, `mode`, `version`, `startedAt`, `endsAt` y `actorId`; reconexión recupera snapshot; mensajes idempotentes y ordenados; evitar que dos pestañas del Studio dupliquen cambios.
-- [ ] **P0-06. Cronómetro** calculado desde tiempo del servidor, no desde relojes independientes de clientes. Mostrar pausa/reanudación coherente y estado de tiempo agotado.
+- [x] **P0-06. Cronómetro** calculado desde tiempo del servidor, no desde relojes independientes de clientes. Mostrar pausa/reanudación coherente y estado de tiempo agotado.
 
 ## P0 · Misiones oficiales revisadas
 
@@ -39,10 +39,12 @@ Cada fase debe mostrar en participantes: nombre, objetivo, instrucciones de 2–
 | 5 Verificación | **Comprueben el prototipo y expliquen los riesgos encontrados.** | Ejecuten escenarios de prueba simulados. Identifiquen al menos un hallazgo, su impacto y una prueba que permita comprobar la corrección. | Hallazgo clasificado, evidencia y prueba de regresión. |
 | 6 Entrega y aprendizaje | **Decidan si la app está lista y qué harían ante un problema en producción.** | Revisen los pendientes y riesgos. Decidan publicar, publicar con condiciones o detener. Definan un plan de reversión y una mejora para la siguiente iteración. | Decisión razonada, riesgo residual, rollback y retrospectiva. |
 
-- [ ] **P0-07. Unificar textos** de las misiones en catálogo de servidor o recurso i18n; no duplicar copy en tres frontends.
-- [ ] **P0-08. Fases 2 y 4**: las historias y criterios de aceptación deben alimentar el prompt simulado; no duplicar una idea libre como si fuera una especificación. Guardar revisiones.
-- [ ] **P0-09. Concordancia prototipo-prompts**: para la idea de reservas de eventos, el fixture debe representar reservas de eventos. Si se quiere un prototipo de tareas, convertir la discrepancia en un incidente `requirements_mismatch` explícitamente asignado y explicable; nunca mostrarse inadvertidamente como resultado normal.
-- [ ] **P0-10. Estado de entregables**: borrador, enviado, aceptado, requiere revisión. Bloqueo de fases futuras hasta autorización del Studio; permitir reabrir fase con auditoría y preservar versiones.
+- [x] **P0-07. Unificar textos** de las misiones en catálogo de servidor o recurso i18n; no duplicar copy en tres frontends.
+- [x] **P0-08. Fases 2 y 4**: las historias y criterios de aceptación deben alimentar el prompt simulado; no duplicar una idea libre como si fuera una especificación. Guardar revisiones.
+- [x] **P0-09. Concordancia prototipo-prompts**: para la idea de reservas de eventos, el fixture debe representar reservas de eventos. Si se quiere un prototipo de tareas, convertir la discrepancia en un incidente `requirements_mismatch` explícitamente asignado y explicable; nunca mostrarse inadvertidamente como resultado normal.
+- [x] **P0-10. Estado de entregables**: borrador, enviado, aceptado, requiere revisión. Bloqueo de fases futuras hasta autorización del Studio; permitir reabrir fase con auditoría y preservar versiones.
+
+> **Avance (etapas 1 y 2):** catálogo único en `packages/shared/phases.mjs`; subestados THEORY/PRACTICE/REFLECTION/CLOSED; entregables con borrador/enviado/aceptado/requiere revisión y revisiones; prompt prellenado desde las fases 1–3; prototipo según proyecto y arquitectura; migración v9 sin equivalencias automáticas. **P0-05 parcial:** los eventos llevan sesión, fase, subestado, versión, `stageStartedAt` y `deadline`, con reconexión por snapshot e idempotencia; falta incluir `actorId` en el evento. **BUILD-03** (discrepancia intencional) queda para el motor de incidentes.
 
 ## P0 · Incidentes individuales y difusión desde Studio
 

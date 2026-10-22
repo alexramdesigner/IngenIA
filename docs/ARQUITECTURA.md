@@ -37,14 +37,17 @@ Las vistas usan `/api` (participante), `/api/studio` (conferencista) y `/api/pro
 | GET | `/sessions/:id/events` | SSE; snapshot inmediato y cambios posteriores |
 | POST | `/sessions/:id/phase-command` | Solo PRESENTADOR de la sala |
 | POST | `/sessions/:id/projector-access` | Solo PRESENTADOR; enlace privado de lectura |
-| POST | `/sessions/:id/actions/idea` | Fase 1; `prompt` (20–6000 caracteres) |
-| POST | `/sessions/:id/actions/generate` | Fase 2; idea existente, máximo 3 generaciones |
-| POST | `/sessions/:id/actions/audit` | Fase 3; prototipo y `justification` |
-| POST | `/sessions/:id/actions/fix` | Fase 4; auditoría existente |
-| POST | `/sessions/:id/actions/publish` | Fase 5; corrección, `checklist:true`, `verdict`, `justification` |
+| POST | `/sessions/:id/actions/discovery` | Fase 1; `projectType`, `user`, `problem`, `features[3]`, `constraint` |
+| POST | `/sessions/:id/actions/specification` | Fase 2; `stories[2]`, `criteria[3]`, `negative` |
+| POST | `/sessions/:id/actions/architecture` | Fase 3; `architecture`, `data`, `accessFlow`, `authRule`, `justification` |
+| POST | `/sessions/:id/actions/generate` | Fase 4; requiere fases 1–3 enviadas; `prompt` (20–6000); máximo 3 por iteración |
+| POST | `/sessions/:id/actions/construction` | Fase 4; versión de la iteración; `matches`, `differs` |
+| POST | `/sessions/:id/actions/verification` | Fase 5; construcción enviada; `category`, `severity`, `description`, `impact`, `regressionTest` |
+| POST | `/sessions/:id/actions/delivery` | Fase 6; verificación enviada; `decision`, `conditions` si aplica, `residualRisk`, `rollback`, `improvement`, `checklist:true` |
+| POST | `/sessions/:id/deliverable-review` | Solo PRESENTADOR; `teamId`, `phase`, `decision` (ACCEPT o REQUEST_CHANGES), `comment` |
 | GET | `/sessions/:id/report` | Participante; JSON de su propio equipo |
 
-Comandos y acciones requieren `expectedVersion` e `idempotencyKey`. Los comandos admiten START, ADVANCE, PAUSE, RESUME, EXTEND, REOPEN y FINISH. `seconds` configura tiempo (1–14400; por defecto 1200). REOPEN usa `phase` y `confirm:true`; FINISH también requiere confirmación. ADVANCE con pendientes exige confirmación. Los saltos solo se realizan por REOPEN confirmado.
+Comandos y acciones requieren `expectedVersion` e `idempotencyKey`. Los comandos admiten START, PRACTICE, REFLECT, CLOSE, ADVANCE, PAUSE, RESUME, EXTEND, REOPEN, ITERATE y FINISH. `seconds` configura tiempo (1–14400); la práctica usa por defecto la duración de la fase del catálogo y EXTEND 300 segundos. REOPEN usa `phase` y `confirm:true`; FINISH también requiere confirmación. ADVANCE con pendientes exige confirmación. Los saltos solo se realizan por REOPEN confirmado.
 
 `403 PHASE_LOCKED` incluye `currentPhase`, `requiredPhase`, `sessionStatus`. `409 VERSION_CONFLICT` indica que debe releerse el estado. Reutilizar una clave con otro payload devuelve `409 IDEMPOTENCY_CONFLICT`. Los reintentos de acciones participantes siguen sujetos al guard actual: un replay no autoriza otra fase.
 
@@ -54,7 +57,7 @@ Los comandos del conferencista se ejecutan atómicamente con auditoría e idempo
 
 La API almacena deadline absoluto en milisegundos. La UI calcula el tiempo con `serverTime`. Pausar guarda tiempo restante y bloquea mutaciones; reanudar reconstruye deadline. Llegar a cero **no cambia ni cierra la fase automáticamente**: el conferencista dirige el taller.
 
-Reabrir conserva el historial. Modificar idea invalida las entregas y requisitos de fases superiores; regenerar invalida auditoría/corrección/decisión; auditar de nuevo invalida corrección/decisión. Las versiones previas permanecen legibles. Una tarea debe llevar la versión de sesión original: incluso si la misma fase se reabre, una entrega con versión antigua se rechaza.
+Reabrir conserva el historial. Reenviar con cambios la entrega de una fase marca como «requiere revisión» las entregas posteriores, sin borrarlas; cada entregable guarda hasta diez revisiones. Las versiones generadas permanecen legibles. Una tarea debe llevar la versión de sesión original: incluso si la misma fase se reabre, una entrega con versión antigua se rechaza.
 
 ## Límites de ejecución
 
@@ -119,10 +122,20 @@ La presentación del evento se opera fuera de IngenIA. Se retiraron el embed, la
 
 START, ADVANCE y REOPEN establecen `phaseStage: THEORY`, sin plazo activo. PRACTICE, exclusivo del conferencista y sujeto a versión/idempotencia, inicia la práctica y el cronómetro. El servidor rechaza entregas en teoría aunque se intente llamar directamente al endpoint. PAUSE/RESUME conserva el momento; EXTEND solo corresponde a la práctica. Las sesiones activas previas sin phaseStage conservan su comportamiento práctico hasta cambiar de fase.
 
-Las notas de explicación se guardan en `presenter_phase_notes`, por sesión y fase (1–5), con versión independiente y máximo de 6000 caracteres. `POST /api/studio/sessions/:id/phase-notes` admite phase, content y expectedVersion; únicamente el conferencista de esa sesión puede escribirlas. Solo el estado de Studio contiene phaseNotes. El evento presenter.notes.updated se envía exclusivamente a conferencistas del horario. Guardar notas no altera la fase, el reloj ni la versión del taller. El cliente conserva borradores durante actualizaciones y detecta conflictos de otro Studio; recargar el navegador descarta borradores no guardados.
+Las notas de explicación se guardan en `presenter_phase_notes`, por sesión y fase (1–6), con versión independiente y máximo de 6000 caracteres. `POST /api/studio/sessions/:id/phase-notes` admite phase, content y expectedVersion; únicamente el conferencista de esa sesión puede escribirlas. Solo el estado de Studio contiene phaseNotes. El evento presenter.notes.updated se envía exclusivamente a conferencistas del horario. Guardar notas no altera la fase, el reloj ni la versión del taller. El cliente conserva borradores durante actualizaciones y detecta conflictos de otro Studio; recargar el navegador descarta borradores no guardados.
 
 ## Revisión de entregas en proyección
 
 `POST /api/studio/sessions/:id/team-review` acepta SHOW (teamId), HIDE o PAGE (page), con expectedVersion independiente del taller. Solo el conferencista del horario puede operar. SHOW requiere práctica activa o pausada y entrega de la fase actual; valida equipo por sesión. Se construye una instantánea explícita con nombre del equipo, cantidad de miembros y contenido de la fase, sin perfiles ni notas privadas. El contenido largo se pagina para el lienzo 16:9. Actualizar la revisión vuelve a construir la instantánea; las entregas posteriores no cambian lo que ya se está mostrando.
 
 La tabla team_reviews (esquema v8) persiste esa vista con versión independiente. teamReview se incluye exclusivamente en estados de Studio/proyector. team.review.updated notifica estos roles y las operaciones quedan auditadas. START, ADVANCE, REOPEN y FINISH retiran la revisión en la misma transacción. PAUSE/RESUME la conservan, sin alterar permisos ni avances de los equipos. El proyector muestra el texto escapado; ningún código de las entregas se ejecuta.
+
+## Modelo AI-DSE (esquema v9)
+
+`packages/shared/phases.mjs` es el catálogo único de las seis fases (id, slug, título, objetivo, teoría, misión, instrucciones, evidencia, criterio de finalización, duración y categorías de incidentes) y lo importan servidor, Studio, proyector y participantes. `packages/shared/projects.mjs` define los proyectos elegibles, las arquitecturas simuladas, las categorías de hallazgo y las decisiones de entrega.
+
+`phaseStage` recorre THEORY → PRACTICE → REFLECTION → CLOSED. Solo PRACTICE acepta entregas y corre el cronómetro; REFLECTION y CLOSED son de lectura. ADVANCE abre la teoría de la fase siguiente. ITERATE, solo desde Verificación, vuelve a la práctica de Construcción con IA con `iteration + 1` (máximo 3) y archiva las entregas 4 y 5 de cada equipo en `project.archive`.
+
+Cada equipo guarda `project.deliverables[fase] = { status, data, updatedAt, submittedAt, review, revisions }` con estados `draft`, `submitted`, `accepted` y `needs_review`. Solo `submitted` y `accepted` cuentan como avance. El prototipo simulado (`services/api/deliverables.mjs`) se genera según el proyecto y la arquitectura elegidos, de modo que el resultado normal siempre corresponde a lo pedido.
+
+La migración v9 no asigna equivalencias entre modelos: las sesiones del modelo de cinco fases vuelven a WAITING con `legacyReset`, el trabajo previo de cada equipo pasa a `legacyProject` con `needsReconciliation: true` y las notas del conferencista se trasladan a `presenter_phase_notes_legacy`. Antes de migrar una base con datos ejecuta `npm run backup`.

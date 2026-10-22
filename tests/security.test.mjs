@@ -7,6 +7,16 @@ import { join } from 'node:path';
 import { createApp } from '../services/api/server.mjs';
 import { transition } from '../services/api/domain.mjs';
 const password = 'test-only-presenter-password-123456789';
+// Entregas válidas por acción; cada prueba sobreescribe solo lo que necesita.
+const VALID = {
+  discovery: { projectType: 'reservas', user: 'Estudiantes que organizan eventos académicos', problem: 'Las reservas se pierden en chats y hojas sueltas', features: ['Crear reserva', 'Ver mis reservas', 'Cancelar reserva'], constraint: 'Solo correo institucional' },
+  specification: { stories: ['Como estudiante quiero reservar un auditorio para mi evento', 'Como estudiante quiero cancelar mi reserva para liberar el espacio'], criteria: ['La reserva aparece en mi lista al guardarla', 'No se puede reservar sin fecha', 'Solo el propietario puede cancelar'], negative: 'Si el espacio ya está ocupado se muestra un aviso y no se guarda' },
+  architecture: { architecture: 'client-api', data: 'Reserva con título, fecha, espacio y propietario', accessFlow: 'El usuario inicia sesión y la API valida cada petición', authRule: 'Solo el propietario puede ver o cancelar su reserva', justification: 'Necesitamos datos compartidos y control de acceso en el servidor' },
+  generate: { prompt: 'Crea una app de reservas de eventos universitarios con API, base de datos y autorización por propietario.' },
+  construction: { matches: 'Crea y lista las reservas del usuario como pedimos', differs: 'No comprueba el propietario al consultar por id' },
+  verification: { category: 'Seguridad', severity: 'Alta', description: 'Se puede consultar la reserva de otro usuario por su id', impact: 'Exposición de datos de otros estudiantes', regressionTest: 'Consultar una reserva ajena debe responder prohibido' },
+  delivery: { decision: 'PUBLISH_WITH_CONDITIONS', conditions: 'Solo tras corregir la autorización por propietario', residualRisk: 'Prototipo simulado sin pruebas de carga', rollback: 'Volver a la versión anterior y desactivar reservas nuevas', improvement: 'Agregar pruebas de autorización horizontal', checklist: true }
+};
 async function harness(t, database = ':memory:') {
   const app = createApp({ database, password, logRequests: false });
   await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
@@ -34,39 +44,48 @@ async function harness(t, database = ':memory:') {
   };
   const act = async (action, extra = {}, cookie = participant) => {
     const state = await request('/sessions/tarde/state', null, cookie);
-    return request(`/sessions/tarde/actions/${action}`, { expectedVersion: state.body.version, idempotencyKey: randomUUID(), ...extra }, cookie);
+    return request(`/sessions/tarde/actions/${action}`, { ...VALID[action], expectedVersion: state.body.version, idempotencyKey: randomUUID(), ...extra }, cookie);
   };
-  return { ...app, request, presenter, participant, command, act, login, base };
+  // Lleva la sesión a la práctica de la fase indicada con todas las entregas previas enviadas.
+  const reach = async phase => {
+    await command('START');
+    for (const actions of [['discovery'], ['specification'], ['architecture'], ['generate', 'construction'], ['verification']].slice(0, phase - 1)) {
+      for (const action of actions) assert.equal((await act(action)).status, 200, action);
+      await command('ADVANCE');
+    }
+  };
+  return { ...app, request, presenter, participant, command, act, reach, login, base };
 }
-test('Casos 1–6, 11, 13 y 14: fases y recorrido DEMO sin Internet', async t => {
+test('Casos 1–6, 11, 13 y 14: seis fases AI-DSE y recorrido DEMO sin Internet', async t => {
   const h = await harness(t);
-  for (const a of ['generate','audit','fix','publish']) {
+  for (const a of ['discovery','specification','architecture','generate','construction','verification','delivery']) {
     const r = await h.act(a); assert.equal(r.status,403); assert.equal(r.body.error,'PHASE_LOCKED'); assert.equal(r.body.sessionStatus,'WAITING');
   }
   assert.equal((await h.command('START')).status,200);
-  assert.equal((await h.act('generate')).body.error,'PHASE_LOCKED');
-  assert.equal((await h.act('idea',{prompt:'Una app de tareas para estudiantes sin datos personales'})).status,200);
-  assert.equal((await h.act('generate')).status,403);
+  assert.equal((await h.act('specification')).body.error,'PHASE_LOCKED');
+  const discovered = await h.act('discovery'); assert.equal(discovered.status,200);
+  assert.equal(discovered.body.team.project.deliverables[1].status,'submitted');
   const v = (await h.request('/sessions/tarde/state',null,h.presenter)).body.version;
   await h.command('PAUSE');
-  assert.equal((await h.act('idea',{prompt:'Una idea que intenta cambiar durante la pausa'})).status,403);
+  assert.equal((await h.act('discovery')).status,403);
   await h.command('RESUME');
   assert.ok((await h.request('/sessions/tarde/state',null,h.presenter)).body.version>v);
+  await h.command('ADVANCE'); assert.equal((await h.act('specification')).status,200);
+  await h.command('ADVANCE'); assert.equal((await h.act('architecture')).status,200);
   await h.command('ADVANCE');
   const generated = await h.act('generate'); assert.equal(generated.status,200);
-  assert.equal(generated.body.team.project.versions[0].sourceMode,'DEMO');
-  for (const a of ['audit','fix','publish']) assert.equal((await h.act(a)).status,403);
-  await h.command('ADVANCE');
-  assert.equal((await h.act('audit',{justification:'Falta autorizar al propietario en cada acceso.'})).status,200);
-  assert.equal((await h.act('fix')).status,403);
-  await h.command('ADVANCE');
-  assert.equal((await h.act('fix')).status,200);
-  assert.equal((await h.act('publish')).status,403);
-  await h.command('ADVANCE');
-  assert.equal((await h.act('publish',{verdict:'GO',checklist:true,justification:'Solo presentación privada de un fixture educativo.'})).status,200);
+  const version = generated.body.team.project.versions[0];
+  assert.equal(version.sourceMode,'DEMO'); assert.equal(version.projectType,'reservas');
+  assert.match(version.code,/SIMULACIÓN EDUCATIVA/); assert.match(version.code,/crearReserva/); assert.doesNotMatch(version.code,/Tarea/);
+  assert.equal(generated.body.team.project.deliverables[4].status,'draft');
+  assert.equal((await h.act('construction')).status,200);
+  await h.command('ADVANCE'); assert.equal((await h.act('verification')).status,200);
+  await h.command('ADVANCE'); assert.equal((await h.act('delivery')).status,200);
+  assert.equal((await h.command('ADVANCE')).body.error,'INVALID_TRANSITION');
   await h.command('FINISH',{confirm:true});
-  assert.equal((await h.act('publish')).status,403);
-  assert.equal((await h.request('/sessions/tarde/report',null,h.participant)).body.team.project.verdict,'GO');
+  assert.equal((await h.act('delivery')).status,403);
+  const report = (await h.request('/sessions/tarde/report',null,h.participant)).body;
+  assert.equal(report.team.project.deliverables[6].data.decision,'PUBLISH_WITH_CONDITIONS');
 });
 test('Casos 7–8: autorización de rol y aislamiento de sesiones', async t => {
   const h = await harness(t);
@@ -89,23 +108,23 @@ test('Casos 9–10: hidratación, doble clic, dos controles y replay atómicos',
   const contenders = await Promise.all([h.presenter,controller2].map(cookie=>h.request('/sessions/tarde/phase-command',{action:'ADVANCE',expectedVersion:1,idempotencyKey:randomUUID(),confirm:true},cookie)));
   assert.deepEqual(contenders.map(r=>r.status).sort(),[200,409]);
   const reconnected = await h.request('/sessions/tarde/state',null,h.participant);
-  assert.equal(reconnected.body.activePhase,2); assert.equal(reconnected.body.permissions.idea,false);
-  assert.equal(reconnected.body.permissions.generate,false);
+  assert.equal(reconnected.body.activePhase,2); assert.equal(reconnected.body.permissions.discovery,false);
+  assert.equal(reconnected.body.permissions.specification,false);
   assert.equal(reconnected.body.phaseStage,'THEORY');
-  assert.equal((await h.request('/sessions/tarde/actions/generate',{expectedVersion:1,idempotencyKey:randomUUID()},h.participant)).body.error,'PHASE_LOCKED');
+  assert.equal((await h.request('/sessions/tarde/actions/specification',{expectedVersion:1,idempotencyKey:randomUUID()},h.participant)).body.error,'PHASE_LOCKED');
   await h.command('PRACTICE');
-  assert.equal((await h.request('/sessions/tarde/actions/generate',{expectedVersion:1,idempotencyKey:randomUUID()},h.participant)).body.error,'VERSION_CONFLICT');
+  assert.equal((await h.request('/sessions/tarde/actions/specification',{expectedVersion:1,idempotencyKey:randomUUID()},h.participant)).body.error,'VERSION_CONFLICT');
 });
 test('Caso 12: resultado tardío rechazado tras cerrar o reabrir la fase', async t => {
   const h = await harness(t);
-  await h.command('START'); await h.act('idea',{prompt:'Un prototipo educativo de tareas para estudiantes'}); await h.command('ADVANCE');
+  await h.command('START'); await h.act('discovery'); await h.command('ADVANCE');
   const version = (await h.request('/sessions/tarde/state',null,h.participant)).body.version;
   await h.command('ADVANCE',{confirm:true});
-  const late = await h.request('/sessions/tarde/actions/generate',{expectedVersion:version,idempotencyKey:randomUUID()},h.participant);
+  const late = await h.request('/sessions/tarde/actions/specification',{...VALID.specification,expectedVersion:version,idempotencyKey:randomUUID()},h.participant);
   assert.equal(late.body.error,'PHASE_LOCKED');
   await h.command('REOPEN',{phase:2,confirm:true});
-  assert.equal((await h.request('/sessions/tarde/actions/generate',{expectedVersion:version,idempotencyKey:randomUUID()},h.participant)).body.error,'VERSION_CONFLICT');
-  assert.equal((await h.request('/sessions/tarde/state',null,h.participant)).body.team.project.versions.length,0);
+  assert.equal((await h.request('/sessions/tarde/actions/specification',{...VALID.specification,expectedVersion:version,idempotencyKey:randomUUID()},h.participant)).body.error,'VERSION_CONFLICT');
+  assert.equal((await h.request('/sessions/tarde/state',null,h.participant)).body.team.project.deliverables[2],undefined);
 });
 test('Caso 15: SSE sincronizado y proyector sin datos privados ni mutaciones', async t => {
   const h = await harness(t);
@@ -124,27 +143,40 @@ test('Caso 15: SSE sincronizado y proyector sin datos privados ni mutaciones', a
   const state = (await h.request('/sessions/tarde/state',null,projector)).body;
   assert.equal(state.mode,'DEMO'); assert.equal(state.team,undefined); assert.equal(state.teams,undefined); assert.equal(state.joinCode,undefined);
   assert.deepEqual(state.leaderboard,[{name:'Equipo A',completed:0}]);
-  assert.equal((await h.request('/sessions/tarde/actions/idea',{idempotencyKey:'a',prompt:'Intento de editar desde el proyector'},projector)).status,403);
+  assert.equal((await h.request('/sessions/tarde/actions/discovery',{...VALID.discovery,idempotencyKey:'a'},projector)).status,403);
   assert.equal((await h.request('/sessions/tarde/phase-command',{action:'START'},projector)).status,403);
 });
-test('Transacciones: precondiciones, idempotencia de entregas e invalidación al retroceder', async t => {
+test('Transacciones: precondiciones, borradores, idempotencia y revisión de coherencia al retroceder', async t => {
   const h=await harness(t);
   await h.command('START');
   assert.equal((await h.command('ADVANCE')).body.error,'INCOMPLETE_TEAMS');
-  await h.command('ADVANCE',{confirm:true});
-  assert.equal((await h.act('generate')).body.error,'IDEA_REQUIRED');
+  await h.command('REOPEN',{phase:4,confirm:true});
+  assert.equal((await h.act('generate')).body.error,'DISCOVERY_REQUIRED');
   await h.command('REOPEN',{phase:1,confirm:true});
-  await h.act('idea',{prompt:'Una app de tareas para un equipo de estudiantes'});
+  assert.equal((await h.act('discovery',{features:['Solo una']})).body.error,'DELIVERABLE_INVALID');
+  assert.equal((await h.act('discovery',{projectType:'inventado'})).body.field,'projectType');
+  const draft = await h.act('discovery',{draft:true,problem:'',features:['Crear reserva']});
+  assert.equal(draft.body.team.project.deliverables[1].status,'draft');
+  assert.equal((await h.request('/sessions/tarde/state',null,h.presenter)).body.summary.completed,0);
+  await h.act('discovery');
+  await h.command('ADVANCE'); await h.act('specification');
+  await h.command('ADVANCE'); await h.act('architecture');
   await h.command('ADVANCE');
   const version=(await h.request('/sessions/tarde/state',null,h.participant)).body.version;
-  const b={expectedVersion:version,idempotencyKey:randomUUID()};
+  const b={...VALID.generate,expectedVersion:version,idempotencyKey:randomUUID()};
   await h.request('/sessions/tarde/actions/generate',b,h.participant);
   await h.request('/sessions/tarde/actions/generate',b,h.participant);
   assert.equal((await h.request('/sessions/tarde/state',null,h.participant)).body.team.project.versions.length,1);
+  assert.equal((await h.act('construction',{matches:'corto'})).body.field,'matches');
+  await h.act('construction');
   await h.command('REOPEN',{phase:1,confirm:true});
-  await h.act('idea',{prompt:'Otra idea para el equipo; requiere nueva generación'});
-  await h.command('REOPEN',{phase:3,confirm:true});
-  assert.equal((await h.act('audit',{justification:'Un intento de auditar un prototipo anterior'})).body.error,'PROTOTYPE_REQUIRED');
+  await h.act('discovery',{problem:'Otro problema distinto para el mismo usuario'});
+  const project=(await h.request('/sessions/tarde/state',null,h.participant)).body.team.project;
+  assert.equal(project.deliverables[1].revisions.length,2);
+  for (const phase of [2,3,4]) assert.equal(project.deliverables[phase].status,'needs_review');
+  assert.deepEqual(project.deliverables[2].data.stories,VALID.specification.stories);
+  await h.command('REOPEN',{phase:5,confirm:true});
+  assert.equal((await h.act('verification')).body.error,'CONSTRUCTION_REQUIRED');
 });
 test('Cookies, origen, logout, validación y archivos privados', async t => {
   const h = await harness(t);
@@ -164,6 +196,9 @@ test('Reloj: pausa congela, extensión suma y reanudación usa tiempo restante',
   s=transition(s,{action:'EXTEND',seconds:10},20000); assert.equal(s.remainingMs,60000);
   s=transition(s,{action:'RESUME'},50000); assert.equal(s.deadline,110000);
   assert.throws(()=>transition(s,{action:'REOPEN',phase:5}),/CONFIRMATION_REQUIRED/);
+  s=transition(s,{action:'EXTEND',seconds:60},200000); assert.equal(s.deadline,260000);
+  let fresh=transition(transition({status:'WAITING',activePhase:null,version:0,remainingMs:0,deadline:null},{action:'START'},0),{action:'PRACTICE'},0);
+  assert.equal(fresh.deadline,12*60*1000);
 });
 test('Persistencia: reiniciar conserva versión de sesión', async t => {
   const dir=mkdtempSync(join(tmpdir(),'ingenia-test-'));
@@ -241,9 +276,9 @@ test('Equipo compartido: seis integrantes, sugerencias, nombre canónico y lími
   assert.equal(state.teams[0].memberCount,6);
   const member=replies.find(r=>r.cookie).cookie;
   await h.command('START');
-  await h.act('idea',{prompt:'Una idea compartida por los seis integrantes del equipo'},member);
+  await h.act('discovery',{problem:'Un problema compartido por los seis integrantes del equipo'},member);
   const other=(await h.request('/sessions/tarde/state',null,h.participant)).body;
-  assert.equal(other.team.project.prompt,'Una idea compartida por los seis integrantes del equipo');
+  assert.equal(other.team.project.deliverables[1].data.problem,'Un problema compartido por los seis integrantes del equipo');
   assert.equal((await h.request('/sessions/tarde/state',null,h.presenter)).body.summary.completed,1);
   const rejoin=await h.request('/auth/join',{code,name:'equipo a'},h.participant);
   assert.equal(rejoin.status,200);
@@ -345,7 +380,7 @@ async function registrationFor(h,cookie=h.participant) {
 }
 test('Reingreso sin cookie conserva identidad, rol, equipo, notas y proyecto; revoca acceso anterior', async t=>{
   const h=await harness(t); const registration=await registrationFor(h);
-  await h.command('START'); await h.act('idea',{prompt:'Idea original que debe conservarse al recuperar acceso'});
+  await h.command('START'); await h.act('discovery',{problem:'Problema original que debe conservarse al recuperar acceso'});
   await h.request('/notes',{content:'Apuntes privados que deben conservarse',expectedVersion:0},h.participant);
   const before=(await h.request('/sessions/tarde/state',null,h.participant)).body;
   const resumed=await h.request('/auth/join',registration);
@@ -411,11 +446,11 @@ test('Recuperar después de logout, pausa y cierre mantiene lectura y bloqueos d
   const recovered=await h.request('/auth/join',registration);assert.equal(recovered.status,200);
   await h.command('START');await h.command('PAUSE');
   const paused=await h.request('/auth/join',registration);assert.equal(paused.status,200);
-  assert.equal((await h.act('idea',{prompt:'Intento de editar mientras el taller está pausado'},paused.cookie)).status,403);
+  assert.equal((await h.act('discovery',{},paused.cookie)).status,403);
   await h.command('FINISH',{confirm:true});
   const closed=await h.request('/auth/join',registration);assert.equal(closed.status,200);
   assert.equal((await h.request('/sessions/tarde/state',null,closed.cookie)).body.status,'FINISHED');
-  assert.equal((await h.act('idea',{prompt:'Intento de editar una vez terminada la sesión'},closed.cookie)).status,403);
+  assert.equal((await h.act('discovery',{},closed.cookie)).status,403);
   assert.equal((await h.request('/auth/join',{sessionId:'tarde',name:'Otro equipo'})).body.error,'SESSION_FINISHED');
 });
 
@@ -439,20 +474,21 @@ test('Studio y proyector sin integración de presentaciones ni captura',async t=
   }
 });
 
-test('Cinco fases: explicación bloqueada, práctica explícita, pausa y cronómetro',async t=>{
+test('Seis fases: teoría bloqueada, práctica, reflexión, cierre, pausa y cronómetro',async t=>{
  const h=await harness(t);
  const command=async(action,extra={})=>{
   const s=(await h.request('/sessions/tarde/state',null,h.presenter)).body;
   return h.request('/sessions/tarde/phase-command',{action,expectedVersion:s.version,idempotencyKey:randomUUID(),...extra},h.presenter);
  };
- const actions=['idea','generate','audit','fix','publish'];
- for(let phase=1;phase<=5;phase++){
+ const actions=['discovery','specification','architecture','generate','verification','delivery'];
+ for(let phase=1;phase<=6;phase++){
   const opened=await command(phase===1?'START':'ADVANCE',{confirm:true});
   assert.equal(opened.body.phaseStage,'THEORY');assert.equal(opened.body.deadline,null);assert.equal(opened.body.activePhase,phase);
   let student=(await h.request('/sessions/tarde/state',null,h.participant)).body;
   assert.equal(Object.values(student.permissions).some(Boolean),false);
   assert.equal((await h.act(actions[phase-1])).body.error,'PHASE_LOCKED');
   assert.equal((await command('EXTEND')).status,409);
+  assert.equal((await command('REFLECT')).status,409);
   await command('PAUSE');assert.equal((await command('PRACTICE')).status,409);
   assert.equal((await command('RESUME')).body.deadline,null);
   const practice=await command('PRACTICE',{seconds:60});
@@ -460,30 +496,36 @@ test('Cinco fases: explicación bloqueada, práctica explícita, pausa y cronóm
   student=(await h.request('/sessions/tarde/state',null,h.participant)).body;
   assert.equal(student.permissions[actions[phase-1]],true);
   assert.equal((await command('PRACTICE')).status,409);
+  const reflection=await command('REFLECT');
+  assert.equal(reflection.body.phaseStage,'REFLECTION');assert.equal(reflection.body.deadline,null);
+  assert.equal((await h.act(actions[phase-1])).body.error,'PHASE_LOCKED');
+  assert.equal((await command('CLOSE')).body.phaseStage,'CLOSED');
+  assert.equal((await command('CLOSE')).status,409);
  }
+ assert.equal((await command('ADVANCE')).status,409);
  const reopened=await command('REOPEN',{phase:2,confirm:true});assert.equal(reopened.body.phaseStage,'THEORY');
  const state=(await h.request('/sessions/tarde/state',null,h.presenter)).body;
  assert.equal((await h.request('/sessions/tarde/phase-command',{action:'PRACTICE',expectedVersion:state.version,idempotencyKey:randomUUID()},h.participant)).status,403);
 });
-test('Notas del conferencista: cinco fases, privacidad, sesión, versiones y persistencia',async t=>{
+test('Notas del conferencista: seis fases, privacidad, sesión, versiones y persistencia',async t=>{
  const dir=mkdtempSync(join(tmpdir(),'ingenia-speaker-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
  const database=join(dir,'test.sqlite');const h=await harness(t,database);
  const path='/sessions/tarde/phase-notes';
  const access=await h.request('/sessions/tarde/projector-access',{},h.presenter);
  const projector=(await h.request('/auth/projector',{token:access.body.token})).cookie;
- for(let phase=1;phase<=5;phase++){
+ for(let phase=1;phase<=6;phase++){
   const result=await h.request(path,{phase,content:`Puntos privados fase ${phase}`,expectedVersion:0},h.presenter);
   assert.equal(result.status,200);assert.equal(result.body.note.version,1);
  }
  const presenter=(await h.request('/sessions/tarde/state',null,h.presenter)).body;
- assert.equal(presenter.version,0);assert.equal(Object.keys(presenter.phaseNotes).length,5);
+ assert.equal(presenter.version,0);assert.equal(Object.keys(presenter.phaseNotes).length,6);
  for(const cookie of [h.participant,projector]){
   assert.equal((await h.request('/sessions/tarde/state',null,cookie)).body.phaseNotes,undefined);
   assert.equal((await h.request(path,{phase:1,content:'intento',expectedVersion:1},cookie)).status,403);
  }
  assert.equal((await h.request('/sessions/noche/phase-notes',{phase:1,content:'intento',expectedVersion:0},h.presenter)).status,403);
  const night=await h.login('noche');assert.deepEqual((await h.request('/sessions/noche/state',null,night)).body.phaseNotes,{});
- for(const phase of [0,6,'1'])assert.equal((await h.request(path,{phase,content:'inválido',expectedVersion:0},h.presenter)).status,400);
+ for(const phase of [0,7,'1'])assert.equal((await h.request(path,{phase,content:'inválido',expectedVersion:0},h.presenter)).status,400);
  assert.equal((await h.request(path,{phase:1,content:'x'.repeat(6001),expectedVersion:1},h.presenter)).status,400);
  const contenders=await Promise.all(['primero','segundo'].map(content=>h.request(path,{phase:1,content,expectedVersion:1},h.presenter)));
  assert.deepEqual(contenders.map(r=>r.status).sort(),[200,409]);
@@ -491,7 +533,6 @@ test('Notas del conferencista: cinco fases, privacidad, sesión, versiones y per
  assert.equal((await reopened.request('/sessions/tarde/state',null,reopened.presenter)).body.phaseNotes[1].version,2);
  assert.equal((await h.request(path,{phase:1,content:'',expectedVersion:2},h.presenter)).body.note.content,'');
 });
-
 test('Revisión: solo Studio elige entregas de su sesión; proyector sin identidades ni notas',async t=>{
  const h=await harness(t),path='/sessions/tarde/team-review';
  const team=(await h.request('/sessions/tarde/state',null,h.participant)).body.team;
@@ -507,7 +548,7 @@ test('Revisión: solo Studio elige entregas de su sesión; proyector sin identid
  assert.equal((await review('SHOW',{teamId:team.id})).body.error,'TEAM_WORK_REQUIRED');
  assert.equal((await review('SHOW',{teamId:'missing'})).status,404);
  assert.equal((await review('SHOW',{teamId:{}})).status,400);
- await h.act('idea',{prompt:'Idea del equipo para compartir con todos en el auditorio'});
+ await h.act('discovery',{problem:'Idea del equipo para compartir con todos en el auditorio'});
  await h.request('/sessions/tarde/phase-notes',{phase:1,content:'Notas secretas del conferencista',expectedVersion:0},h.presenter);
  await h.request('/notes',{content:'Notas privadas del participante',expectedVersion:0},h.participant);
  let s=(await h.request('/sessions/tarde/state',null,h.presenter)).body;
@@ -527,12 +568,12 @@ test('Revisión: solo Studio elige entregas de su sesión; proyector sin identid
  assert.equal((await review('HIDE')).body.teamReview.visible,false);
  assert.equal((await review('PAGE',{page:0})).status,400);
  await review('SHOW',{teamId:team.id});
- await h.act('idea',{prompt:'La idea se modificó mientras el equipo estaba hablando'});
+ await h.act('discovery',{problem:'La idea se modificó mientras el equipo estaba hablando'});
  assert.match((await h.request('/sessions/tarde/state',null,projector)).body.teamReview.pages[0],/Idea del equipo/);
  assert.match((await review('SHOW',{teamId:team.id})).body.teamReview.pages[0],/idea se modificó/);
  await h.command('ADVANCE');assert.equal((await h.request('/sessions/tarde/state',null,projector)).body.teamReview.visible,false);
 });
-test('Revisión: cinco fases, paginación, SSE, pausa y cierre sin reiniciar el taller',async t=>{
+test('Revisión: seis fases, paginación, SSE, pausa y cierre sin reiniciar el taller',async t=>{
  const h=await harness(t),path='/sessions/tarde/team-review';
  const team=(await h.request('/sessions/tarde/state',null,h.participant)).body.team;
  const access=await h.request('/sessions/tarde/projector-access',{},h.presenter);
@@ -541,7 +582,7 @@ test('Revisión: cinco fases, paginación, SSE, pausa y cierre sin reiniciar el 
   const state=(await h.request('/sessions/tarde/state',null,h.presenter)).body;
   return h.request(path,{action:'SHOW',teamId:team.id,expectedVersion:state.teamReview.version},h.presenter);
  };
- await h.command('START');await h.act('idea',{prompt:'Idea larga del equipo. '.repeat(180)});
+ await h.command('START');await h.act('discovery',{user:'Usuario descrito con detalle. '.repeat(13),problem:'Idea larga del equipo. '.repeat(25),constraint:'Restricción larga. '.repeat(20)});
  const abort=new AbortController();
  const response=await fetch(h.base+'/api/projection/sessions/tarde/events',{headers:{Cookie:projector},signal:abort.signal});
  const reader=response.body.getReader();await reader.read();
@@ -550,40 +591,48 @@ test('Revisión: cinco fases, paginación, SSE, pausa y cierre sin reiniciar el 
  let paged=await h.request(path,{action:'PAGE',page:1,expectedVersion:shown.body.teamReview.version},h.presenter);
  assert.equal(paged.body.teamReview.page,1);
  await h.command('PAUSE');assert.equal((await h.request('/sessions/tarde/state',null,projector)).body.teamReview.visible,true);await h.command('RESUME');
- await h.command('ADVANCE');await h.act('generate');shown=await show();assert.match(shown.body.teamReview.pages.join(''),/FICTICIA_NO_USAR/);
- await h.command('ADVANCE');await h.act('audit',{justification:'Es necesario autorizar cada acceso al recurso del usuario.'});shown=await show();assert.match(shown.body.teamReview.pages.join(''),/autorizar cada acceso/);
- await h.command('ADVANCE');await h.act('fix');shown=await show();assert.match(shown.body.teamReview.pages.join(''),/record.ownerId/);
- await h.command('ADVANCE');await h.act('publish',{verdict:'NO_GO',checklist:true,justification:'Este prototipo solo se utiliza como demostración educativa.'});shown=await show();assert.match(shown.body.teamReview.pages.join(''),/NO_GO/);assert.match(shown.body.teamReview.pages.join(''),/demostración educativa/);
+ const pages=async()=>(await show()).body.teamReview.pages.join('');
+ await h.command('ADVANCE');await h.act('specification');assert.match(await pages(),/Criterios de aceptación/);
+ await h.command('ADVANCE');await h.act('architecture');assert.match(await pages(),/Regla de autorización/);
+ await h.command('ADVANCE');await h.act('generate');await h.act('construction');assert.match(await pages(),/FICTICIA_NO_USAR/);
+ await h.command('ADVANCE');await h.act('verification');assert.match(await pages(),/Prueba de regresión/);
+ await h.command('ADVANCE');await h.act('delivery');const last=await pages();assert.match(last,/Publicar con condiciones/);assert.match(last,/autorización horizontal/);
  await h.command('FINISH',{confirm:true});assert.equal((await h.request('/sessions/tarde/state',null,projector)).body.teamReview.visible,false);
- assert.ok(h.db.prepare("SELECT COUNT(*) n FROM phase_actions WHERE data LIKE '%TEAM_REVIEW_%'").get().n>=6);
+ assert.ok(h.db.prepare("SELECT COUNT(*) n FROM phase_actions WHERE data LIKE '%TEAM_REVIEW_%'").get().n>=7);
 });
-test('Ciclo de mejora: desde Corregir se vuelve a Generar con prompt ajustado hasta tres iteraciones', async t => {
+test('Ciclo de mejora: desde Verificación se vuelve a Construcción con prompt ajustado hasta tres iteraciones', async t => {
   const h = await harness(t);
   const cycle = async () => {
-    assert.equal((await h.act('generate')).status, 200); await h.command('ADVANCE');
-    assert.equal((await h.act('audit', { justification: 'Credencial expuesta y falta autorización.' })).status, 200); await h.command('ADVANCE');
-    assert.equal((await h.act('fix')).status, 200);
+    assert.equal((await h.act('generate')).status, 200);
+    assert.equal((await h.act('construction')).status, 200); await h.command('ADVANCE');
+    assert.equal((await h.act('verification')).status, 200);
   };
-  await h.command('START'); await h.act('idea', { prompt: 'Una app de tareas para estudiantes sin datos personales' }); await h.command('ADVANCE');
+  await h.reach(4);
   assert.equal((await h.command('ITERATE', { confirm: true })).body.error, 'INVALID_TRANSITION');
   await cycle();
   assert.equal((await h.command('ITERATE')).body.error, 'CONFIRMATION_REQUIRED');
   const second = await h.command('ITERATE', { confirm: true });
   assert.equal(second.status, 200);
-  assert.equal(second.body.activePhase, 2); assert.equal(second.body.phaseStage, 'PRACTICE'); assert.equal(second.body.iteration, 2);
+  assert.equal(second.body.activePhase, 4); assert.equal(second.body.phaseStage, 'PRACTICE'); assert.equal(second.body.iteration, 2);
   let project = (await h.request('/sessions/tarde/state', null, h.participant)).body.team.project;
-  assert.deepEqual(project.submissions, { 1: true }); assert.equal(project.fixed, undefined); assert.equal(project.versions.length, 2);
-  assert.equal((await h.act('audit', { justification: 'Antes de generar de nuevo.' })).body.error, 'PHASE_LOCKED');
+  assert.equal(project.deliverables[4], undefined); assert.equal(project.deliverables[5], undefined);
+  assert.deepEqual([1,2,3].map(phase => project.deliverables[phase].status), ['submitted','submitted','submitted']);
+  assert.deepEqual(project.archive.map(entry => [entry.phase, entry.iteration]), [[4,1],[5,1]]);
+  assert.equal(project.versions.length, 1);
+  assert.equal((await h.act('verification')).body.error, 'PHASE_LOCKED');
+  assert.equal((await h.act('construction')).body.error, 'PROTOTYPE_REQUIRED');
   assert.equal((await h.act('generate', { prompt: 'corto' })).body.error, 'PROMPT_LENGTH');
-  assert.equal((await h.act('generate', { prompt: 'Una app de tareas que autoriza en servidor y no guarda datos personales' })).status, 200);
+  const adjusted = 'Crea la app de reservas comprobando en el servidor que cada reserva pertenece a quien la consulta.';
+  assert.equal((await h.act('generate', { prompt: adjusted })).status, 200);
   project = (await h.request('/sessions/tarde/state', null, h.participant)).body.team.project;
-  assert.equal(project.prompt, 'Una app de tareas que autoriza en servidor y no guarda datos personales');
-  assert.equal(project.versions.at(-1).iteration, 2);
-  await h.command('ADVANCE'); await h.act('audit', { justification: 'Revisión de la segunda versión.' }); await h.command('ADVANCE'); await h.act('fix');
+  assert.equal(project.versions.at(-1).prompt, adjusted); assert.equal(project.versions.at(-1).iteration, 2);
+  for (let i = 0; i < 2; i++) assert.equal((await h.act('generate')).status, 200);
+  assert.equal((await h.act('generate')).body.error, 'ITERATION_LIMIT');
+  await h.act('construction'); await h.command('ADVANCE'); await h.act('verification');
   assert.equal((await h.command('ITERATE', { confirm: true })).body.iteration, 3);
   await cycle();
   assert.equal((await h.command('ITERATE', { confirm: true })).body.error, 'ITERATION_LIMIT');
-  assert.equal((await h.command('ADVANCE')).body.activePhase, 5);
+  assert.equal((await h.command('ADVANCE')).body.activePhase, 6);
 });
 test('Studio elimina integrantes y equipos: revoca accesos, borra datos y libera el nombre', async t => {
   const h = await harness(t);
@@ -624,4 +673,69 @@ test('Conectados: cuenta solo participantes con transmisión en vivo, no los reg
   let online = 1;
   for (let i = 0; i < 50 && online; i++) { await new Promise(resolve => setTimeout(resolve, 10)); online = (await summary()).online; }
   assert.equal(online, 0);
+});
+
+test('Studio acepta o pide revisar entregas; el equipo lo ve y puede reenviar', async t => {
+  const h = await harness(t);
+  const access = await h.request('/sessions/tarde/projector-access', {}, h.presenter);
+  const projector = (await h.request('/auth/projector', { token: access.body.token })).cookie;
+  const teamId = (await h.request('/sessions/tarde/state', null, h.participant)).body.team.id;
+  const review = (payload, cookie = h.presenter) => h.request('/sessions/tarde/deliverable-review', { teamId, phase: 1, ...payload }, cookie);
+  await h.command('START');
+  assert.equal((await review({ decision: 'ACCEPT' })).body.error, 'TEAM_WORK_REQUIRED');
+  await h.act('discovery', { draft: true });
+  assert.equal((await review({ decision: 'ACCEPT' })).body.error, 'TEAM_WORK_REQUIRED');
+  await h.act('discovery');
+  let presenter = (await h.request('/sessions/tarde/state', null, h.presenter)).body;
+  assert.equal(presenter.teams[0].current.status, 'submitted'); assert.match(presenter.teams[0].current.text, /Reserva de eventos universitarios/);
+  for (const cookie of [h.participant, projector]) assert.equal((await review({ decision: 'ACCEPT' }, cookie)).status, 403);
+  assert.equal((await review({ decision: 'MAYBE' })).status, 400);
+  const requested = await review({ decision: 'REQUEST_CHANGES', comment: 'Concreten el usuario principal' });
+  assert.equal(requested.body.teams[0].current.status, 'needs_review'); assert.equal(requested.body.summary.completed, 0);
+  const student = (await h.request('/sessions/tarde/state', null, h.participant)).body.team.project.deliverables[1];
+  assert.equal(student.status, 'needs_review'); assert.equal(student.review.comment, 'Concreten el usuario principal');
+  assert.equal((await h.act('discovery', { user: 'Estudiantes de pregrado que organizan eventos' })).body.team.project.deliverables[1].status, 'submitted');
+  assert.equal((await review({ decision: 'ACCEPT' })).body.teams[0].current.status, 'accepted');
+  assert.equal((await h.request('/sessions/tarde/state', null, projector)).body.leaderboard[0].completed, 1);
+  assert.doesNotMatch(JSON.stringify((await h.request('/sessions/tarde/state', null, projector)).body), /Concreten|pregrado/);
+  assert.ok(h.db.prepare("SELECT COUNT(*) n FROM phase_actions WHERE data LIKE '%DELIVERABLE_%'").get().n >= 2);
+});
+test('Concordancia: el prototipo simulado corresponde al proyecto y a la arquitectura elegidos', async () => {
+  const { applyDemo } = await import('../services/api/deliverables.mjs');
+  const { PROJECT_TYPES, ARCHITECTURES } = await import('../packages/shared/projects.mjs');
+  const names = { reservas: 'Reserva', tareas: 'Tarea', prestamos: 'Prestamo', tutorias: 'Tutoria' };
+  for (const type of PROJECT_TYPES) for (const architecture of ARCHITECTURES) {
+    let project = {};
+    project = applyDemo(project, 'discovery', { ...VALID.discovery, projectType: type.id });
+    project = applyDemo(project, 'specification', VALID.specification);
+    project = applyDemo(project, 'architecture', { ...VALID.architecture, architecture: architecture.id });
+    const version = applyDemo(project, 'generate', VALID.generate).versions[0];
+    assert.match(version.code, new RegExp(`crear${names[type.id]}\\(`)); assert.ok(version.code.includes(type.title));
+    for (const [other, name] of Object.entries(names)) if (other !== type.id) assert.doesNotMatch(version.code, new RegExp(`crear${name}\\(`));
+    assert.ok(version.scenarios.some(scenario => scenario.result === 'FAIL'));
+    assert.equal(version.scenarios.length, architecture.id === 'static' ? 5 : 4);
+  }
+});
+test('Migración AI-DSE: sesiones previas vuelven a espera y su trabajo queda para reconciliación', async t => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const dir = mkdtempSync(join(tmpdir(), 'ingenia-migration-')); t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const database = join(dir, 'legacy.sqlite');
+  (await createApp({ database, password }).close());
+  const legacy = new DatabaseSync(database);
+  legacy.exec(`DROP TABLE presenter_phase_notes; CREATE TABLE presenter_phase_notes(session_id TEXT NOT NULL REFERENCES sessions(id), phase INTEGER NOT NULL CHECK(phase BETWEEN 1 AND 5), content TEXT NOT NULL, version INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(session_id,phase)); PRAGMA user_version=8;`);
+  legacy.prepare("UPDATE sessions SET data=json_remove(json_set(data,'$.status','ACTIVE','$.activePhase',2,'$.version',4),'$.model') WHERE id='tarde'").run();
+  legacy.prepare("INSERT INTO teams VALUES ('t1','tarde','Equipo previo',?)").run(JSON.stringify({ id: 't1', name: 'Equipo previo', project: { prompt: 'Idea del modelo anterior', submissions: { 1: true } } }));
+  legacy.prepare("INSERT INTO presenter_phase_notes VALUES ('tarde',3,'Notas de Auditar',1,1)").run();
+  legacy.close();
+  const migrated = createApp({ database, password }); t.after(() => migrated.close());
+  const session = JSON.parse(migrated.db.prepare("SELECT data FROM sessions WHERE id='tarde'").get().data);
+  assert.equal(session.model, 'AI-DSE'); assert.equal(session.status, 'WAITING'); assert.equal(session.version, 5);
+  assert.deepEqual([session.legacyReset.status, session.legacyReset.activePhase], ['ACTIVE', 2]);
+  const team = JSON.parse(migrated.db.prepare("SELECT data FROM teams WHERE id='t1'").get().data);
+  assert.deepEqual(team.project, {}); assert.equal(team.legacyProject.needsReconciliation, true); assert.equal(team.legacyProject.project.prompt, 'Idea del modelo anterior');
+  assert.equal(migrated.db.prepare('SELECT COUNT(*) n FROM presenter_phase_notes').get().n, 0);
+  assert.equal(migrated.db.prepare('SELECT content FROM presenter_phase_notes_legacy').get().content, 'Notas de Auditar');
+  migrated.db.prepare("INSERT INTO presenter_phase_notes VALUES ('tarde',6,'Fase seis',1,1)").run();
+  assert.equal(migrated.db.prepare('PRAGMA user_version').get().user_version, 9);
+  assert.equal(JSON.parse(migrated.db.prepare("SELECT data FROM sessions WHERE id='noche'").get().data).legacyReset, undefined);
 });

@@ -1,14 +1,11 @@
 import {ApiError} from './domain.mjs';
+import {deliverableText} from './deliverables.mjs';
 import {PHASES} from '../../packages/shared/phases.mjs';
+import {isDelivered} from '../../packages/shared/projects.mjs';
 export function reviewSnapshot(team,phase,memberCount){
  const p=team.project;
- if(!p.submissions?.[phase])throw new ApiError(409,'TEAM_WORK_REQUIRED');
- let text;
- if(phase===1)text=p.prompt;
- if(phase===2)text=p.versions?.filter(v=>v.phase===2).at(-1)?.code;
- if(phase===3)text=[p.justification,...(p.findings??[]).map(f=>`${f.kind} · ${f.severity}\n${f.consequence}\n${f.mitigation}`)].join('\n\n');
- if(phase===4)text=[p.versions?.filter(v=>v.phase===4).at(-1)?.code,p.verification].filter(Boolean).join('\n\n');
- if(phase===5)text=[p.verdict,p.finalReason,p.publication].filter(Boolean).join('\n\n');
+ if(!isDelivered(p.deliverables?.[phase]))throw new ApiError(409,'TEAM_WORK_REQUIRED');
+ let text=deliverableText(p,phase);
  if(!text)throw new ApiError(409,'TEAM_WORK_REQUIRED');
  const pages=[];
  while(text.length>1100||text.split('\n').length>14){

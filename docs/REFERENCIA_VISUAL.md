@@ -64,7 +64,7 @@ No usar texto blanco sobre lima. Separar el lima de acción del verde de complet
 | Resultado final | Fase 5, checklist y decisión GO/NO GO para demo |
 | Perfil y certificado | Complementaria; certificado solo con reglas institucionales y asistencia verificada |
 
-La consola ilustrada tiene seis etapas; la implementación conserva las cinco fases oficiales del TODO. No mostrar «Lista para producción» ni «asistencia confirmada» con información simulada. Cualquier ranking requiere configuración, criterios transparentes y datos públicos o anonimizados.
+La implementación sigue ahora las seis fases de INGGEN AI-DSE (ver `TODO_INGENIA_AI_DSE.md`); el mapa anterior de cinco fases queda como referencia histórica. No mostrar «Lista para producción» ni «asistencia confirmada» con información simulada. Cualquier ranking requiere configuración, criterios transparentes y datos públicos o anonimizados.
 
 ## Condición de aprobación
 

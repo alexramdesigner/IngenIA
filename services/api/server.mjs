@@ -6,10 +6,12 @@ import { resolve, extname } from 'node:path';
 import { reviewSnapshot } from './team-review.mjs';
 import { openStore, transaction } from './store.mjs';
 import { ApiError, transition, requireActivePhase, permissions } from './domain.mjs';
-import { applyDemo, startIteration } from './demo.mjs';
+import { applyDemo, startIteration, reviewDeliverable, deliverableText } from './deliverables.mjs';
 import { TEAM_ROLES } from '../../packages/shared/team-roles.mjs';
 import { MAX_TEAM_MEMBERS, teamName, teamKey } from '../../packages/shared/teams.mjs';
-import { ACTION_PHASE } from '../../packages/shared/phases.mjs';
+import { ACTION_PHASE, PHASE_COUNT } from '../../packages/shared/phases.mjs';
+import { isDelivered } from '../../packages/shared/projects.mjs';
+const delivered = project => Object.keys(project?.deliverables ?? {}).map(Number).filter(phase => isDelivered(project.deliverables[phase])).sort((a, b) => a - b);
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const hash = value => createHash('sha256').update(value).digest('hex');
 const text = (value, max = 100) => typeof value === 'string' && value.length > 0 && value.length <= max;
@@ -66,16 +68,19 @@ export function createApp(options = {}) {
     const participantCount = teams.reduce((sum, team) => sum + memberCount(team.id), 0);
     // Conectados: participantes distintos con una transmisión en vivo abierta en esta sesión.
     const online = new Set([...clients].filter(c => c.actor.session_id === id && c.actor.role === 'PARTICIPANT').map(c => c.actor.id)).size;
-    const summary = { total: teams.length, participants: participantCount, online, completed: teams.filter(t => t.project.submissions?.[s.activePhase]).length };
+    const summary = { total: teams.length, participants: participantCount, online, completed: teams.filter(t => isDelivered(t.project.deliverables?.[s.activePhase])).length };
     const statisticsCode = db.prepare('SELECT statistics_code FROM sessions WHERE id=?').get(id).statistics_code;
     const result = { ...s, statisticsCode, serverTime: Date.now(), permissions: permissions(s, actor.role), role: actor.role, summary };
     if(['PRESENTER','PROJECTOR'].includes(actor.role))result.teamReview=teamReview(id);
     // Auditorio: solo nombre del equipo y fases entregadas, sin integrantes ni contenido.
-    if (actor.role === 'PROJECTOR') result.leaderboard = teams.map(t => ({ name: t.name, completed: Object.keys(t.project.submissions ?? {}).length })).sort((a, b) => b.completed - a.completed || a.name.localeCompare(b.name, 'es'));
+    if (actor.role === 'PROJECTOR') result.leaderboard = teams.map(t => ({ name: t.name, completed: delivered(t.project).length })).sort((a, b) => b.completed - a.completed || a.name.localeCompare(b.name, 'es'));
     if (actor.role === 'PRESENTER') {
       result.phaseNotes = Object.fromEntries(db.prepare('SELECT phase,content,version,updated_at AS updatedAt FROM presenter_phase_notes WHERE session_id=?').all(id).map(note=>[note.phase,note]));
       result.joinCode = db.prepare('SELECT join_code FROM sessions WHERE id=?').get(id).join_code;
-      result.teams = teams.map(t => ({ id: t.id, name: t.name, memberCount: memberCount(t.id), maxMembers: MAX_TEAM_MEMBERS, members: db.prepare('SELECT identity_id AS id,full_name AS fullName,email,team_role AS teamRole FROM participant_profiles WHERE team_id=? ORDER BY rowid').all(t.id), completed: Object.keys(t.project.submissions ?? {}).map(Number) }));
+      result.teams = teams.map(t => ({ id: t.id, name: t.name, memberCount: memberCount(t.id), maxMembers: MAX_TEAM_MEMBERS, members: db.prepare('SELECT identity_id AS id,full_name AS fullName,email,team_role AS teamRole FROM participant_profiles WHERE team_id=? ORDER BY rowid').all(t.id), completed: delivered(t.project),
+        // Entrega de la fase activa para revisarla desde Studio.
+        current: s.activePhase ? { status: t.project.deliverables?.[s.activePhase]?.status ?? null, review: t.project.deliverables?.[s.activePhase]?.review ?? null, text: deliverableText(t.project, s.activePhase) } : null,
+        legacy: Boolean(t.legacyProject?.needsReconciliation) }));
     }
     if (actor.role === 'PARTICIPANT') {
       result.profile = db.prepare('SELECT full_name AS fullName,email,team_role AS teamRole FROM participant_profiles WHERE identity_id=?').get(actor.id);
@@ -246,7 +251,7 @@ export function createApp(options = {}) {
       if (path === '/api/me' && req.method === 'GET') {
         const a = authenticate(req); return json(res, 200, { sessionId: a.session_id, role: a.role });
       }
-      const match = /^\/api\/sessions\/([a-z]+)\/(state|events|phase-command|phase-notes|team-review|team-admin|projector-access|report|actions\/(idea|generate|audit|fix|publish))$/.exec(path);
+      const match = new RegExp(`^/api/sessions/([a-z]+)/(state|events|phase-command|phase-notes|team-review|team-admin|deliverable-review|projector-access|report|actions/(${Object.keys(ACTION_PHASE).join('|')}))$`).exec(path);
       if (match) {
         const [, id, route, action] = match;
         const actor = authenticate(req); authorize(actor, id);
@@ -336,10 +341,25 @@ export function createApp(options = {}) {
           if (reviewChanged) { emit(id, 'team.review.updated', 'PRESENTER'); emit(id, 'team.review.updated', 'PROJECTOR'); }
           return json(res, 200, result);
         }
+        if (route === 'deliverable-review' && req.method === 'POST') {
+          // Studio acepta una entrega o pide revisarla; queda auditado y el equipo lo ve al instante.
+          authorize(actor, id, 'PRESENTER'); const b = await body(req);
+          if (!text(b.teamId, 100) || !Number.isInteger(b.phase) || b.phase < 1 || b.phase > PHASE_COUNT || !['ACCEPT','REQUEST_CHANGES'].includes(b.decision) || (b.comment !== undefined && typeof b.comment !== 'string') || (b.comment?.length ?? 0) > 500) throw new ApiError(400, 'INVALID_COMMAND');
+          const result = transaction(db, () => {
+            const row = db.prepare('SELECT data FROM teams WHERE id=? AND session_id=?').get(b.teamId, id);
+            if (!row) throw new ApiError(404, 'TEAM_NOT_FOUND');
+            const team = JSON.parse(row.data);
+            team.project = reviewDeliverable(team.project, b.phase, b.decision, b.comment?.trim());
+            db.prepare('UPDATE teams SET data=? WHERE id=?').run(JSON.stringify(team), b.teamId);
+            db.prepare('INSERT INTO phase_actions(session_id,actor_id,version,data,timestamp) VALUES (?,?,?,?,?)').run(id, actor.id, getSession(id).version, JSON.stringify({ action: 'DELIVERABLE_' + b.decision, teamId: b.teamId, phase: b.phase }), Date.now());
+            return state(id, actor);
+          });
+          emit(id, 'team.progress'); return json(res, 200, result);
+        }
         if (route === 'phase-notes' && req.method === 'POST') {
           authorize(actor,id,'PRESENTER');
           const b=await body(req);
-          if(!Number.isInteger(b.phase)||b.phase<1||b.phase>5||typeof b.content!=='string'||b.content.length>6000||!Number.isInteger(b.expectedVersion)) throw new ApiError(400,'INVALID_PHASE_NOTE');
+          if(!Number.isInteger(b.phase)||b.phase<1||b.phase>PHASE_COUNT||typeof b.content!=='string'||b.content.length>6000||!Number.isInteger(b.expectedVersion)) throw new ApiError(400,'INVALID_PHASE_NOTE');
           const note=transaction(db,()=>{
             const old=db.prepare('SELECT version FROM presenter_phase_notes WHERE session_id=? AND phase=?').get(id,b.phase);
             if((old?.version??0)!==b.expectedVersion) throw new ApiError(409,'PHASE_NOTE_VERSION_CONFLICT');
@@ -364,7 +384,7 @@ export function createApp(options = {}) {
             const next = transition(old, b);
             if (b.action === 'ITERATE') {
               for (const row of db.prepare('SELECT id,data FROM teams WHERE session_id=?').all(id)) {
-                const team = JSON.parse(row.data); team.project = startIteration(team.project ?? {});
+                const team = JSON.parse(row.data); team.project = startIteration(team.project ?? {}, old.iteration ?? 1);
                 db.prepare('UPDATE teams SET data=? WHERE id=?').run(JSON.stringify(team), row.id);
               }
             }
@@ -376,7 +396,7 @@ export function createApp(options = {}) {
             db.prepare('INSERT INTO phase_actions(session_id,actor_id,version,data,timestamp) VALUES (?,?,?,?,?)').run(id, actor.id, next.version, JSON.stringify({ action: b.action, fromPhase: old.activePhase, toPhase: next.activePhase, fromStatus: old.status, toStatus: next.status, reason: b.reason ?? null }), Date.now());
             const response = state(id, actor);
             db.prepare('INSERT INTO idempotency VALUES (?,?,?,?,?)').run(id, actor.id, b.idempotencyKey, request, JSON.stringify(response));
-            event = ({ PRACTICE:'phase.practice', START: 'session.started', ADVANCE: 'phase.opened', REOPEN: 'phase.opened', ITERATE: 'phase.opened', PAUSE: 'session.paused', RESUME: 'session.resumed', FINISH: 'session.finished', EXTEND: 'timer.updated' })[b.action];
+            event = ({ PRACTICE:'phase.practice', REFLECT: 'phase.reflection', CLOSE: 'phase.completed', START: 'session.started', ADVANCE: 'phase.opened', REOPEN: 'phase.opened', ITERATE: 'phase.opened', PAUSE: 'session.paused', RESUME: 'session.resumed', FINISH: 'session.finished', EXTEND: 'timer.updated' })[b.action];
             return response;
           });
           if (event) {

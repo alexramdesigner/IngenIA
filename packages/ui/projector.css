@@ -36,7 +36,7 @@
 #projection-stage .pj-stat-value .ui-icon{width:52px;height:52px;color:var(--pj-green)}
 #projection-stage .pj-stat-value strong{font-size:64px;line-height:1;font-variant-numeric:tabular-nums}
 #projection-stage .pj-stat-sub{margin:4px 0 0;color:var(--muted);font-size:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#projection-stage .pj-steps{list-style:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:26px 24px 22px}
+#projection-stage .pj-steps{list-style:none;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));padding:26px 24px 22px}
 #projection-stage .pj-steps li{position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--muted);font-size:26px;font-weight:650}
 #projection-stage .pj-steps li::before{content:"";position:absolute;top:28px;right:50%;width:100%;height:5px;border-radius:3px;background:#24543d;z-index:0}
 #projection-stage .pj-steps li:first-child::before{display:none}
@@ -61,7 +61,7 @@
 #projection-stage .pj-position.pos-2{background:#c9fa72;color:#0b2a14}
 #projection-stage .pj-position.pos-3{background:#2fd36b;color:#03261b}
 #projection-stage .pj-team{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650}
-#projection-stage .pj-bar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;height:14px}
+#projection-stage .pj-bar{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;height:14px}
 #projection-stage .pj-bar i{display:block;border-radius:4px;background:#ffffff12;box-shadow:inset 0 0 0 1.5px #3f7a5a}
 #projection-stage .pj-bar i.is-filled{background:linear-gradient(90deg,var(--pj-green),var(--pj-lime));box-shadow:0 0 10px #2fd36b55}
 #projection-stage .pj-ranking-list strong{text-align:right;color:var(--pj-lime);font-variant-numeric:tabular-nums}
@@ -93,3 +93,5 @@
 #projection-stage .pj-stat-value .ui-icon{width:44px;height:44px}
 #projection-stage .pj-stat-value strong{font-size:56px}
 #projection-stage .pj-stat-sub{font-size:21px}
+#projection-stage .pj-timer #timer.is-expired{color:var(--warn)}
+#projection-stage .pj-steps li{font-size:22px}

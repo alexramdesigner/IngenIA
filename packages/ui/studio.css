@@ -80,7 +80,7 @@ body[data-view=presenter] #timer{margin:0 0 8px;font-size:clamp(2.6rem,5vw,3.8re
 .studio-content #projector{display:inline-flex;align-items:center;gap:10px;margin:8px 0 0}
 .studio-content #projector .ui-icon{width:20px;height:20px}
 .phase-track{padding:22px 16px 14px}
-.phase-stepper{list-style:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin:0;padding:0}
+.phase-stepper{list-style:none;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));margin:0;padding:0}
 .improvement-loop{display:flex;align-items:center;justify-content:center;gap:8px;width:60%;margin:14px auto 0!important;padding:6px 10px;border:1px dashed var(--studio-line);border-top:0;border-radius:0 0 14px 14px;color:var(--muted);font-size:13px}
 .improvement-loop .ui-icon{width:15px;height:15px}
 .improvement-loop.is-active{border-color:#2fd36b88;color:var(--studio-green)}
@@ -148,3 +148,12 @@ body[data-view=presenter] #timer{margin:0 0 8px;font-size:clamp(2.6rem,5vw,3.8re
   .improvement-loop{width:100%;font-size:12px}
 }
 @media(prefers-reduced-motion:reduce){.studio-shell,.studio-sidebar{transition:none}}
+
+/* Entrega de la fase activa dentro de cada equipo. */
+.team-deliverable{margin-top:10px}
+.team-deliverable pre{max-height:260px;margin:8px 0;font-size:13px;white-space:pre-wrap}
+.team-deliverable .actions button{padding:8px 12px;font-size:14px}
+.session-timer.is-expired{color:var(--warn)}
+body[data-view=presenter] #timer.is-expired{color:var(--warn)}
+.team-members{display:inline-flex;align-items:center;gap:5px}
+.team-members .ui-icon{width:14px;height:14px}
