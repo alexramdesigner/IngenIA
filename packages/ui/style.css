@@ -1,0 +1,103 @@
+:root{color-scheme:dark;--bg:#071c19;--panel:#10332b;--line:#31564a;--text:#f5fff6;--muted:#bbcec2;--lime:#d1fa75;--warn:#ffd17d;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text)}*{box-sizing:border-box}body{margin:0}header{padding:24px max(5vw,20px);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:16px}header strong{font-size:1.6rem}header span{color:var(--lime)}main{max-width:1100px;margin:auto;padding:28px 20px 80px}h1{font-size:clamp(2rem,5vw,3.5rem);line-height:1.1;margin:16px 0}h2{font-size:1.3rem}p{line-height:1.6}a{color:var(--lime)}.muted,small{color:var(--muted)}.card{padding:24px;border:1px solid var(--line);border-radius:18px;background:var(--panel);margin:20px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}.phase{padding:16px;border:1px solid var(--line);border-radius:12px;color:var(--muted)}.phase.active{border-color:var(--lime);color:var(--lime)}.badge{font-size:.8rem;padding:6px 10px;border-radius:20px;background:#28422a;color:var(--lime)}button{background:var(--lime);border:0;border-radius:9px;color:#102312;padding:12px 18px;font:inherit;font-weight:650;cursor:pointer;margin:6px 6px 6px 0}button.secondary{background:#244b40;color:var(--text);border:1px solid var(--line)}button:disabled{opacity:.4;cursor:not-allowed}input,select,textarea{display:block;width:100%;margin:8px 0 18px;padding:12px;background:var(--bg);border:1px solid #6c8f7a;border-radius:8px;color:var(--text);font:inherit}input[type=checkbox]{display:inline;width:auto}textarea{min-height:145px;resize:vertical}label{display:block}pre{overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);padding:18px;border-radius:12px}#notice{color:var(--warn);white-space:pre-wrap}#notice:not(:empty){padding:16px;border:1px solid var(--warn);border-radius:10px;margin-bottom:20px}#connection{font-size:.9rem}#timer{font-size:2.7rem;font-variant-numeric:tabular-nums;color:var(--lime)}.actions{display:flex;flex-wrap:wrap;gap:4px}footer{border-top:1px solid var(--line);padding:22px 5vw;color:var(--muted);font-size:.85rem}:focus-visible{outline:3px solid var(--warn);outline-offset:4px}body[data-view=projector] main{max-width:1500px}body[data-view=projector] h1{font-size:clamp(3rem,7vw,7rem)}body[data-view=projector] #timer{font-size:6rem}@media(max-width:500px){header{align-items:flex-start;flex-direction:column}.card{padding:18px}.phase{padding:12px}.grid{grid-template-columns:1fr 1fr}}
+
+/* Activo institucional original: sin recortes, filtros ni deformación. */
+header{flex-wrap:wrap;background:#002b1b}
+.brand-lockup{display:flex;align-items:center;gap:24px;min-width:0}
+.institutional-logo{display:block;width:230px;max-width:100%;height:auto;object-fit:contain;margin:12px 0}
+.brand-lockup strong{padding-left:24px;border-left:1px solid var(--line)}
+body[data-view=projector] .institutional-logo{width:300px}
+@media(max-width:640px){.brand-lockup{flex-wrap:wrap;gap:12px}.institutional-logo{width:210px}.brand-lockup strong{font-size:1.2rem;padding-left:12px}}
+@media(max-width:360px){.brand-lockup{flex-direction:column;align-items:flex-start}.brand-lockup strong{border-left:0;padding-left:0}}
+
+/* Lienzo de auditorio fijo 1920×1080; escala uniforme con bandas fuera de 16:9. */
+body[data-view=projector]{width:100vw;height:100vh;overflow:hidden;background:#000}
+#projection-stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;overflow:hidden;transform-origin:center;background:var(--bg);display:flex;flex-direction:column}
+#projection-stage header{flex:none;padding:24px 64px;min-height:152px;flex-wrap:nowrap}
+#projection-stage .brand-lockup{flex-wrap:nowrap;flex-direction:row}
+#projection-stage .institutional-logo{width:300px}
+#projection-stage .brand-lockup strong{font-size:32px}
+#projection-stage #connection{font-size:22px}
+#projection-stage .badge{font-size:20px}
+#projection-stage main{width:100%;max-width:none;flex:1;min-height:0;padding:24px 64px}
+#projection-stage h1{font-size:68px;margin:12px 0;line-height:1.1}
+#projection-stage p{font-size:26px;margin:10px 0;line-height:1.35}
+#projection-stage #timer{font-size:100px;line-height:1.1;margin:12px 0}
+#projection-stage .grid{grid-template-columns:repeat(5,1fr)}
+#projection-stage .phase{font-size:25px;padding:18px}
+#projection-stage .phase small{font-size:19px}
+#projection-stage .card{margin:16px 0;padding:20px}
+#projection-stage h2{font-size:30px;margin:8px 0}
+#projection-stage footer{font-size:19px;padding:14px 64px;flex:none}
+.projection-fullscreen{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));z-index:2;display:grid;place-items:center;width:38px;height:38px;margin:0;padding:8px;background:transparent;color:#fff;border:1px solid #fff;border-radius:10px;opacity:.45;transition:opacity .15s,background-color .15s}
+.projection-fullscreen:hover,.projection-fullscreen:focus-visible{opacity:1;background:#001c14}
+.projection-fullscreen .fullscreen-collapse{display:none}
+.projection-fullscreen[aria-pressed=true] .fullscreen-expand{display:none}
+.projection-fullscreen[aria-pressed=true] .fullscreen-collapse{display:block}
+@media(prefers-reduced-motion:reduce){.projection-fullscreen{transition:none}}
+
+.projection-fullscreen svg{width:20px;height:20px}
+
+/* Phosphor Icons (MIT): selección SVG local, sin fuentes ni CDN. */
+.ui-icon{display:inline-block;vertical-align:middle;flex-shrink:0;fill:currentColor;stroke:none}
+
+/* Fondo institucional: desenfoque aislado del contenido y contraste reforzado. */
+:root{--platform-background:linear-gradient(90deg,rgba(0,24,17,.78),rgba(0,24,17,.68)),url('/packages/ui/assets/fondo-verde-tecnologico.png');--platform-background-blur:6px}
+body[data-view=presenter],body[data-view=participant]{min-height:100svh;background:var(--bg);isolation:isolate}
+body[data-view=presenter]::before,body[data-view=participant]::before,#projection-stage::before{content:"";position:fixed;inset:-18px;z-index:-1;pointer-events:none;background-image:var(--platform-background);background-size:cover;background-position:center;background-repeat:no-repeat;filter:blur(var(--platform-background-blur))}
+body[data-view=presenter] header,#projection-stage header{background:transparent}
+#projection-stage{background:var(--bg);isolation:isolate}
+#projection-stage::before{position:absolute}
+
+/* Identidad del taller compartida por Studio y auditorio. */
+body[data-view=presenter] .brand-lockup,#projection-stage .brand-lockup{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);align-items:center;gap:clamp(16px,3vw,40px);width:100%;min-width:0}
+body[data-view=presenter] .institutional-logo{width:100%;max-width:300px;height:auto}
+body[data-view=presenter] .workshop-title,#projection-stage .workshop-title{display:flex;justify-self:end;align-items:center;justify-content:flex-end;gap:clamp(10px,2vw,24px);min-width:0;text-align:right;color:#c9fa72;font-size:clamp(13px,2.4vw,30px);line-height:1.2;font-weight:750}
+body[data-view=presenter] .workshop-title strong,#projection-stage .workshop-title strong{border:0;padding:0;color:inherit;font-size:inherit;font-weight:800}
+body[data-view=presenter] .workshop-icon,#projection-stage .workshop-icon{display:grid;place-items:center;flex-shrink:0;width:clamp(32px,5vw,64px);height:clamp(32px,5vw,64px);border-radius:18px;background:linear-gradient(145deg,#d8ff7d,#71c84f);color:#06482b;box-shadow:0 3px 0 #237a39}
+body[data-view=presenter] .workshop-icon svg,#projection-stage .workshop-icon svg{width:58%;height:58%}
+#projection-stage .workshop-title{font-size:38px;gap:24px}
+#projection-stage .workshop-icon{width:76px;height:76px;border-radius:22px}
+#projection-stage header{flex-wrap:wrap}
+
+.platform-footer{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 24px}
+.footer-details{flex:1;min-width:0}
+.platform-footer .footer-connection{margin-left:auto;text-align:right;color:var(--lime);font-size:13px;line-height:1.4}
+#projection-stage footer .footer-connection{font-size:20px}
+
+body[data-view=presenter] .platform-wordmark,#projection-stage .platform-wordmark{justify-self:end;border:0;padding:0;font-size:clamp(22px,3.2vw,40px);line-height:1.15;color:#f5fff6;text-align:right}
+#projection-stage .platform-wordmark{font-size:52px}
+
+/* Marca junto al logo, título del taller conservado al extremo derecho. */
+body[data-view=presenter] .brand-lockup,#projection-stage .brand-lockup{grid-template-columns:minmax(0,1fr) auto minmax(0,1.25fr);gap:clamp(12px,2vw,32px)}
+body[data-view=presenter] .platform-wordmark,#projection-stage .platform-wordmark{justify-self:start;border-left:1px solid var(--line);padding-left:clamp(12px,2vw,24px);text-align:left}
+body[data-view=presenter] .platform-wordmark{font-size:clamp(18px,2.5vw,32px)}
+#projection-stage .platform-wordmark{font-size:40px}
+@media(max-width:700px){body[data-view=presenter] .brand-lockup{grid-template-columns:minmax(0,1fr) auto}body[data-view=presenter] .brand-lockup>.workshop-title{grid-column:1/-1;justify-self:end}}
+
+/* Logo y marca próximos; el título del taller conserva el espacio derecho. */
+body[data-view=presenter] .brand-lockup,#projection-stage .brand-lockup{grid-template-columns:auto auto minmax(0,1fr);column-gap:12px}
+body[data-view=presenter] .brand-lockup>.institutional-logo{width:clamp(140px,22vw,300px)}
+body[data-view=presenter] .platform-wordmark,#projection-stage .platform-wordmark{padding-left:12px}
+@media(max-width:700px){body[data-view=presenter] .brand-lockup{grid-template-columns:auto minmax(0,1fr)}}
+
+/* Revisión de una entrega guardada, dirigida desde Studio. */
+.team-review-option{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.team-review-option p{margin:6px 0}
+.team-review-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45;background:#00251bd9;padding:24px;border-left:3px solid var(--lime)}
+#projection-stage .team-review-display h1{font-size:58px}
+#projection-stage .team-review-text{font-size:28px;line-height:1.4;margin-top:24px}
+
+/* La revisión se superpone al taller, que permanece tenuemente visible. */
+#projection-stage .projection-review-overlay{position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;padding:72px 110px;background:rgba(0,15,10,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+#projection-stage .projection-review-modal{width:100%;max-width:1660px;max-height:100%;overflow:auto;padding:36px 44px;border:1px solid #659f7380;border-radius:24px;background:rgba(8,43,31,.97);box-shadow:0 28px 100px #0009}
+#projection-stage .projection-review-modal .team-review-text{margin-top:20px}
+
+/* Indicador compacto de fases en el espacio derecho del auditorio. */
+#projection-stage .projection-overview{display:grid;grid-template-columns:minmax(0,1fr) 640px;gap:64px;align-items:start}
+#projection-stage .projection-phase-progress{list-style:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin:38px 0 0;padding:0}
+#projection-stage .projection-phase-progress li{position:relative;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;font-size:20px;line-height:1.25;color:var(--muted)}
+#projection-stage .projection-phase-progress li:not(:last-child)::after{content:"";position:absolute;top:21px;left:calc(50% + 22px);width:calc(100% - 44px);height:2px;background:#345e49}
+#projection-stage .projection-phase-number{display:grid;place-items:center;width:44px;height:44px;border:2px solid #345e49;border-radius:50%;background:#03271c;color:var(--text);font-size:22px;font-weight:700}
+#projection-stage .projection-phase-progress .is-current{color:var(--text);font-weight:650}
+#projection-stage .is-current .projection-phase-number{background:var(--lime);border-color:var(--lime);color:#102312;box-shadow:0 0 0 6px #d1fa751a}
+#projection-stage .is-past .projection-phase-number{border-color:#7ea46a;color:var(--lime)}

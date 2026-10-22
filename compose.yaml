@@ -1,0 +1,28 @@
+services:
+  ingenia:
+    build: .
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      PRESENTER_PASSWORD: ${PRESENTER_PASSWORD:?Ejecuta npm run setup primero}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TOKEN_TTL_SECONDS: ${TOKEN_TTL_SECONDS:-28800}
+      DATABASE_PATH: /app/data/ingenia.sqlite
+    volumes:
+      - ingenia-data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 1.0
+    stop_grace_period: 15s
+volumes:
+  ingenia-data:

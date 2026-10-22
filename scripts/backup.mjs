@@ -1,0 +1,10 @@
+import { DatabaseSync } from 'node:sqlite';
+import { mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+const path=process.env.DATABASE_PATH ?? './data/ingenia.sqlite';
+mkdirSync('./data/backups',{recursive:true,mode:0o700});
+const target=resolve(`./data/backups/ingenia-${new Date().toISOString().replace(/[:.]/g,'-')}.sqlite`);
+const db=new DatabaseSync(path,{readOnly:true});
+db.prepare('VACUUM INTO ?').run(target);
+db.close();
+console.log(`Copia consistente creada: ${target}`);

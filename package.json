@@ -1,0 +1,21 @@
+{
+  "name": "ingenia-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
+  "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "dev": "node --env-file-if-exists=.env --watch services/api/server.mjs",
+    "start": "node --env-file-if-exists=.env services/api/server.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node scripts/check.mjs",
+    "backup": "node --env-file-if-exists=.env scripts/backup.mjs",
+    "icons": "node scripts/icons.mjs"
+  },
+  "devDependencies": {
+    "@phosphor-icons/core": "2.1.1"
+  }
+}
