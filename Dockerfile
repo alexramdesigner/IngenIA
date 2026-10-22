@@ -4,6 +4,7 @@ COPY --chown=node:node package.json ./
 COPY --chown=node:node services ./services
 COPY --chown=node:node packages ./packages
 COPY --chown=node:node apps ./apps
+COPY --chown=node:node scripts ./scripts
 RUN mkdir /app/data && chown node:node /app/data
 USER node
 ENV HOST=0.0.0.0 PORT=3000 DATABASE_PATH=/app/data/ingenia.sqlite

@@ -1,19 +1,26 @@
 // Prueba de carga del taller: registra equipos, abre conexiones en vivo y recorre las fases midiendo
 // latencia, tiempo de difusión a todas las pantallas y consistencia final. Uso:
 //   node scripts/load-test.mjs [--teams 50] [--members 6]
-// Levanta un servidor propio con base temporal; no toca data/ingenia.sqlite.
+//     Levanta un servidor propio con base temporal; no toca data/ingenia.sqlite.
+//   LOAD_PASSWORD=… node scripts/load-test.mjs --url https://servidor-de-prueba [--teams 50]
+//     Mide una instancia ya desplegada. Solo para una instancia de prueba con base temporal:
+//     el script se niega a correr si la sesión ya tiene equipos o no está en espera.
 import { spawn, execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-const arg = (name, fallback) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? Number(process.argv[i + 1]) : fallback; };
+const raw = name => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : undefined; };
+const arg = (name, fallback) => raw(name) === undefined ? fallback : Number(raw(name));
+const REMOTE = raw('url')?.replace(/\/$/, '');
 const TEAMS = arg('teams', 50), MEMBERS = arg('members', 6), PORT = arg('port', 3917);
-const password = `carga-${randomUUID()}`;
-const dir = mkdtempSync(join(tmpdir(), 'ingenia-carga-'));
-const server = spawn(process.execPath, ['services/api/server.mjs'], { env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DATABASE_PATH: join(dir, 'carga.sqlite'), PRESENTER_PASSWORD: password, COOKIE_SECURE: 'false' }, stdio: ['ignore', 'ignore', 'inherit'] });
-const base = `http://127.0.0.1:${PORT}/api`;
+const password = REMOTE ? process.env.LOAD_PASSWORD : `carga-${randomUUID()}`;
+if (REMOTE && !password) { console.error('Define LOAD_PASSWORD con la contraseña de Studio de la instancia de prueba.'); process.exit(2); }
+const dir = REMOTE ? null : mkdtempSync(join(tmpdir(), 'ingenia-carga-'));
+const server = REMOTE ? null : spawn(process.execPath, ['services/api/server.mjs'], { env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', DATABASE_PATH: join(dir, 'carga.sqlite'), PRESENTER_PASSWORD: password, COOKIE_SECURE: 'false' }, stdio: ['ignore', 'ignore', 'inherit'] });
+const origin = REMOTE ?? `http://127.0.0.1:${PORT}`;
+const base = `${origin}/api`;
 const stats = {};
 const record = (name, ms) => (stats[name] ??= []).push(ms);
 const pct = (values, p) => { const sorted = [...values].sort((a, b) => a - b); return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * p))] ?? 0; };
@@ -70,8 +77,12 @@ async function fanout(version, since, label, timeout = 15000) {
 }
 
 try {
-  for (let i = 0; i < 100; i++) { try { await fetch(`http://127.0.0.1:${PORT}/healthz`); break; } catch { await new Promise(r => setTimeout(r, 100)); } }
+  for (let i = 0; i < 100; i++) { try { await fetch(`${origin}/healthz`); break; } catch { await new Promise(r => setTimeout(r, 100)); } }
   const presenter = (await request('/auth/presenter', { password, sessionId: 'tarde' })).cookie;
+  if (!presenter) throw new Error('No se pudo ingresar a Studio: revisa LOAD_PASSWORD y la URL.');
+  const initial = (await request('/sessions/tarde/state', null, presenter)).body;
+  // Protección: nunca recorrer una sesión con datos reales.
+  if (initial.status !== 'WAITING' || initial.summary.total > 0) throw new Error(`La sesión «tarde» de ${origin} no está vacía (estado ${initial.status}, ${initial.summary.total} equipos). Usa una instancia de prueba con base temporal.`);
   const token = (await request('/sessions/tarde/projector-access', {}, presenter)).body.token;
   const projector = (await request('/auth/projector', { token })).cookie;
 
@@ -138,8 +149,8 @@ try {
   const final = await versionOf();
   await new Promise(r => setTimeout(r, 300));
   const inconsistent = clients.filter(c => c.version !== final);
-  const rss = Number(execFileSync('ps', ['-o', 'rss=', '-p', String(server.pid)]).toString().trim()) / 1024;
-  const cpu = execFileSync('ps', ['-o', 'time=', '-p', String(server.pid)]).toString().trim();
+  const rss = server ? Number(execFileSync('ps', ['-o', 'rss=', '-p', String(server.pid)]).toString().trim()) / 1024 : null;
+  const cpu = server ? execFileSync('ps', ['-o', 'time=', '-p', String(server.pid)]).toString().trim() : null;
 
   console.log('\n=== Resultado de la prueba de carga ===');
   console.log(`Participantes registrados: ${people.length}/${TEAMS * MEMBERS} en ${registrationSeconds.toFixed(1)} s · conexiones en vivo: ${clients.length}`);
@@ -147,12 +158,12 @@ try {
   const participant = clients.filter(c => c.role === 'participante');
   console.log(`Eventos por participante: ${Math.round(participant.reduce((a, c) => a + c.events, 0) / participant.length)} · datos recibidos por participante: ${(participant.reduce((a, c) => a + c.bytes, 0) / participant.length / 1024).toFixed(0)} KB · mensaje más grande: Studio ${(clients[0].maxBytes / 1024).toFixed(0)} KB, participante ${(Math.max(...participant.map(c => c.maxBytes)) / 1024).toFixed(0)} KB`);
   console.log(`Studio: ${clients[0].events} eventos, ${(clients[0].bytes / 1024 / 1024).toFixed(1)} MB recibidos · proyector: ${clients[1].events} eventos, ${(clients[1].bytes / 1024 / 1024).toFixed(1)} MB`);
-  console.log(`Servidor: memoria ${rss.toFixed(0)} MB · CPU acumulada ${cpu}`);
+  console.log(server ? `Servidor: memoria ${rss.toFixed(0)} MB · CPU acumulada ${cpu}` : `Servidor remoto ${origin}: mide memoria y CPU en la instancia (por ejemplo con top o la consola de Lightsail).`);
   console.log(`Consistencia final: ${inconsistent.length ? `${inconsistent.length} pantallas desactualizadas` : `todas las pantallas en la versión ${final}`}`);
   console.log(errors.length ? `Errores (${errors.length}):\n  ${[...new Set(errors)].slice(0, 15).join('\n  ')}` : 'Errores: ninguno');
   process.exitCode = inconsistent.length || errors.length ? 1 : 0;
 } finally {
   for (const c of clients) c.controller.abort();
-  server.kill();
-  rmSync(dir, { recursive: true, force: true });
+  server?.kill();
+  if (dir) rmSync(dir, { recursive: true, force: true });
 }
