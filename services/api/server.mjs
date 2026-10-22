@@ -6,7 +6,7 @@ import { resolve, extname } from 'node:path';
 import { reviewSnapshot } from './team-review.mjs';
 import { openStore, transaction } from './store.mjs';
 import { ApiError, transition, requireActivePhase, permissions } from './domain.mjs';
-import { applyDemo, startIteration, reviewDeliverable, deliverableText, applyIncidentVariant } from './deliverables.mjs';
+import { applyDemo, startIteration, reviewDeliverable, deliverableText, applyIncidentVariant, removeIncidentVariant } from './deliverables.mjs';
 import { INCIDENT_DEFAULTS, incidentByCode, planAssignments, participantIncidents, presenterIncident, projectorIncident, catalogForPhase } from './incidents.mjs';
 import { TEAM_ROLES } from '../../packages/shared/team-roles.mjs';
 import { MAX_TEAM_MEMBERS, teamName, teamKey } from '../../packages/shared/teams.mjs';
@@ -25,6 +25,17 @@ export function createApp(options = {}) {
   const secure = process.env.COOKIE_SECURE === 'true';
   const clients = new Set();
   const rates = new Map();
+  const limit = (name, fallback) => { const value = Number(options.rateLimits?.[name] ?? process.env[`RATE_LIMIT_${name.toUpperCase()}_PER_MIN`] ?? fallback); return Number.isFinite(value) && value > 0 ? value : fallback; };
+  const limits = { ip: limit('ip', 6000), client: limit('client', 600), credentials: limit('credentials', 20) };
+  const trustProxy = (options.trustProxy ?? process.env.TRUST_PROXY) === true || process.env.TRUST_PROXY === 'true';
+  // Detrás de un proxy de confianza la IP real llega en X-Forwarded-For; nunca se confía en ella sin TRUST_PROXY.
+  const clientIp = req => (trustProxy && req.headers['x-forwarded-for']?.split(',')[0].trim()) || req.socket.remoteAddress;
+  function limited(key, max, now = Date.now()) {
+    const bucket = rates.get(key) ?? { count: 0, until: now + 60000 };
+    if (bucket.until <= now) { bucket.count = 0; bucket.until = now + 60000; }
+    bucket.count++; rates.set(key, bucket);
+    return bucket.count > max;
+  }
   const getSession = id => {
     const row = db.prepare('SELECT data FROM sessions WHERE id=?').get(id);
     if (!row) throw new ApiError(404, 'SESSION_NOT_FOUND');
@@ -85,37 +96,49 @@ export function createApp(options = {}) {
     const teamIds = db.prepare('SELECT id FROM teams WHERE session_id=? ORDER BY id').all(id).map(r => r.id);
     for (const item of planAssignments(id, teamIds, phase, assignments(id), config)) assignIncident(id, item.teamId, item.code, item.phase, 'auto');
   }
-  function state(id, actor) {
+  // Instantánea compartida: lo común a todas las vistas se lee una sola vez por difusión;
+  // cada rol agrega después únicamente sus datos personales.
+  function snapshot(id) {
     const s = getSession(id);
     const teams = db.prepare('SELECT data FROM teams WHERE session_id=?').all(id).map(row => JSON.parse(row.data));
-    const memberCount = teamId => db.prepare("SELECT COUNT(*) AS n FROM identities WHERE team_id=? AND role='PARTICIPANT'").get(teamId).n;
-    const participantCount = teams.reduce((sum, team) => sum + memberCount(team.id), 0);
+    const counts = new Map(db.prepare("SELECT team_id, COUNT(*) AS n FROM identities WHERE session_id=? AND role='PARTICIPANT' GROUP BY team_id").all(id).map(r => [r.team_id, r.n]));
+    const codes = db.prepare('SELECT statistics_code, join_code FROM sessions WHERE id=?').get(id);
     // Conectados: participantes distintos con una transmisión en vivo abierta en esta sesión.
     const online = new Set([...clients].filter(c => c.actor.session_id === id && c.actor.role === 'PARTICIPANT').map(c => c.actor.id)).size;
-    const summary = { total: teams.length, participants: participantCount, online, completed: teams.filter(t => isDelivered(t.project.deliverables?.[s.activePhase])).length };
-    const statisticsCode = db.prepare('SELECT statistics_code FROM sessions WHERE id=?').get(id).statistics_code;
-    const result = { ...s, statisticsCode, serverTime: Date.now(), permissions: permissions(s, actor.role), role: actor.role, summary };
-    if(['PRESENTER','PROJECTOR'].includes(actor.role))result.teamReview=teamReview(id);
-    const share = incidentShare(id);
-    if (actor.role === 'PROJECTOR') result.incidentShare = projectorIncident(share, share.visible ? teams.find(t => t.id === share.teamId)?.name : null);
-    // Auditorio: solo nombre del equipo y fases entregadas, sin integrantes ni contenido.
-    if (actor.role === 'PROJECTOR') result.leaderboard = teams.map(t => ({ name: t.name, completed: delivered(t.project).length })).sort((a, b) => b.completed - a.completed || a.name.localeCompare(b.name, 'es'));
+    const memberCount = teamId => counts.get(teamId) ?? 0;
+    const summary = { total: teams.length, participants: [...counts.values()].reduce((a, n) => a + n, 0), online, completed: teams.filter(t => isDelivered(t.project.deliverables?.[s.activePhase])).length };
+    const cache = new Map(), once = (key, compute) => cache.has(key) ? cache.get(key) : (cache.set(key, compute()), cache.get(key));
+    return { id, s, teams, codes, summary, memberCount, once, review: teamReview(id), share: incidentShare(id), incidents: assignments(id) };
+  }
+  function state(id, actor, snap = snapshot(id)) {
+    const { s, teams, summary, memberCount, once, share } = snap;
+    const result = { ...s, statisticsCode: snap.codes.statistics_code, serverTime: Date.now(), permissions: permissions(s, actor.role), role: actor.role, summary };
+    if (['PRESENTER','PROJECTOR'].includes(actor.role)) result.teamReview = snap.review;
+    if (actor.role === 'PROJECTOR') {
+      result.incidentShare = once('projectorIncident', () => projectorIncident(share, share.visible ? teams.find(t => t.id === share.teamId)?.name : null));
+      // Auditorio: solo nombre del equipo y fases entregadas, sin integrantes ni contenido.
+      result.leaderboard = once('leaderboard', () => teams.map(t => ({ name: t.name, completed: delivered(t.project).length })).sort((a, b) => b.completed - a.completed || a.name.localeCompare(b.name, 'es')));
+    }
     if (actor.role === 'PRESENTER') {
-      result.phaseNotes = Object.fromEntries(db.prepare('SELECT phase,content,version,updated_at AS updatedAt FROM presenter_phase_notes WHERE session_id=?').all(id).map(note=>[note.phase,note]));
-      result.joinCode = db.prepare('SELECT join_code FROM sessions WHERE id=?').get(id).join_code;
-      result.incidents = { share, catalog: catalogForPhase(s.activePhase), assignments: assignments(id).map(a => ({ ...presenterIncident(a), teamName: teams.find(t => t.id === a.teamId)?.name ?? '' })) };
-      result.teams = teams.map(t => ({ id: t.id, name: t.name, memberCount: memberCount(t.id), maxMembers: MAX_TEAM_MEMBERS, members: db.prepare('SELECT identity_id AS id,full_name AS fullName,email,team_role AS teamRole FROM participant_profiles WHERE team_id=? ORDER BY rowid').all(t.id), completed: delivered(t.project),
-        // Entrega de la fase activa para revisarla desde Studio.
-        current: s.activePhase ? { status: t.project.deliverables?.[s.activePhase]?.status ?? null, review: t.project.deliverables?.[s.activePhase]?.review ?? null, text: deliverableText(t.project, s.activePhase) } : null,
-        legacy: Boolean(t.legacyProject?.needsReconciliation) }));
+      result.joinCode = snap.codes.join_code;
+      result.phaseNotes = once('phaseNotes', () => Object.fromEntries(db.prepare('SELECT phase,content,version,updated_at AS updatedAt FROM presenter_phase_notes WHERE session_id=?').all(id).map(note => [note.phase, note])));
+      result.incidents = once('presenterIncidents', () => ({ share, catalog: catalogForPhase(s.activePhase), assignments: snap.incidents.map(a => ({ ...presenterIncident(a), teamName: teams.find(t => t.id === a.teamId)?.name ?? '' })) }));
+      result.teams = once('presenterTeams', () => {
+        const members = Map.groupBy(db.prepare('SELECT identity_id AS id,team_id AS teamId,full_name AS fullName,email,team_role AS teamRole FROM participant_profiles WHERE session_id=? ORDER BY rowid').all(id), m => m.teamId);
+        return teams.map(t => ({ id: t.id, name: t.name, memberCount: memberCount(t.id), maxMembers: MAX_TEAM_MEMBERS, members: (members.get(t.id) ?? []).map(({ teamId, ...member }) => member), completed: delivered(t.project),
+          // Entrega de la fase activa para revisarla desde Studio.
+          current: s.activePhase ? { status: t.project.deliverables?.[s.activePhase]?.status ?? null, review: t.project.deliverables?.[s.activePhase]?.review ?? null, text: deliverableText(t.project, s.activePhase) } : null,
+          legacy: Boolean(t.legacyProject?.needsReconciliation) }));
+      });
     }
     if (actor.role === 'PARTICIPANT') {
-      result.profile = db.prepare('SELECT full_name AS fullName,email,team_role AS teamRole FROM participant_profiles WHERE identity_id=?').get(actor.id);
       const team = teams.find(t => t.id === actor.team_id);
+      if (!team) throw new ApiError(401, 'UNAUTHENTICATED');
+      result.profile = db.prepare('SELECT full_name AS fullName,email,team_role AS teamRole FROM participant_profiles WHERE identity_id=?').get(actor.id);
       result.team = { ...team, memberCount: memberCount(team.id), maxMembers: MAX_TEAM_MEMBERS };
-      const note = db.prepare('SELECT content,version,updated_at AS updatedAt FROM participant_notes WHERE identity_id=? AND session_id=?').get(actor.id,id);
-      result.note = note ?? {content:'',version:0,updatedAt:null};
-      result.incidents = participantIncidents(assignments(id, team.id), s);
+      const note = db.prepare('SELECT content,version,updated_at AS updatedAt FROM participant_notes WHERE identity_id=? AND session_id=?').get(actor.id, id);
+      result.note = note ?? { content: '', version: 0, updatedAt: null };
+      result.incidents = once(`incidents:${team.id}`, () => participantIncidents(snap.incidents.filter(a => a.teamId === team.id), s));
     }
     return result;
   }
@@ -128,13 +151,30 @@ export function createApp(options = {}) {
     const name = ({ PRESENTER: 'ingenia_presenter', PROJECTOR: 'ingenia_projector', PARTICIPANT: 'ingenia' })[role];
     res.setHeader('Set-Cookie', cookie(token, name));
   }
-  function emit(id, type, role) {
-    const s = getSession(id);
-    db.prepare('INSERT INTO events(session_id,type,version,timestamp) VALUES (?,?,?,?)').run(id, type, s.version, Date.now());
-    for (const c of clients) if (c.actor.session_id === id && (!role || c.actor.role === role)) {
+  // audience: rol ('PRESENTER', 'PROJECTOR') o función que decide qué conexiones reciben el cambio.
+  function emit(id, type, audience) {
+    const snap = snapshot(id);
+    db.prepare('INSERT INTO events(session_id,type,version,timestamp) VALUES (?,?,?,?)').run(id, type, snap.s.version, Date.now());
+    const wants = typeof audience === 'function' ? audience : c => !audience || c.actor.role === audience;
+    for (const c of clients) if (c.actor.session_id === id && wants(c)) {
       if (c.expires <= Date.now()) { c.res.end(); clients.delete(c); continue; }
-      c.res.write(`event: ${type}\ndata: ${JSON.stringify(state(id, c.actor))}\n\n`);
+      try { c.res.write(`event: ${type}\ndata: ${JSON.stringify(state(id, c.actor, snap))}\n\n`); }
+      catch { c.res.end(); clients.delete(c); }
     }
+  }
+  // Cambios de un equipo: solo lo reciben sus integrantes, Studio y el proyector.
+  const teamAudience = teamId => c => c.actor.role !== 'PARTICIPANT' || c.actor.team_id === teamId;
+  // Ráfagas de entregas: el equipo recibe su cambio al instante; Studio y proyector, una sola
+  // actualización agrupada cada 250 ms en lugar de una por equipo.
+  const coalesced = new Map();
+  function emitStaff(id, type) {
+    const key = `${id}:${type}`;
+    if (coalesced.has(key)) return;
+    coalesced.set(key, setTimeout(() => { coalesced.delete(key); emit(id, type, c => c.actor.role !== 'PARTICIPANT'); }, 250));
+  }
+  function emitTeamProgress(id, teamId, type = 'team.progress') {
+    emit(id, type, c => c.actor.role === 'PARTICIPANT' && c.actor.team_id === teamId);
+    emitStaff(id, type);
   }
   async function body(req) {
     let size = 0; const chunks = [];
@@ -156,12 +196,11 @@ export function createApp(options = {}) {
       const url = new URL(req.url, 'http://localhost');
       const path = url.pathname.replace(/^\/api\/(studio|projection)(?=\/)/, '/api');
       if (path === '/healthz') { db.prepare('SELECT 1').get(); return json(res, 200, { status: 'ok', mode: 'DEMO' }); }
-      const bucketKey = `${req.socket.remoteAddress}:${path.includes('/auth/') ? 'auth' : 'api'}`;
-      const now = Date.now();
-      const bucket = rates.get(bucketKey) ?? { count: 0, until: now + 60000 };
-      if (bucket.until <= now) { bucket.count = 0; bucket.until = now + 60000; }
-      bucket.count++; rates.set(bucketKey, bucket);
-      if (bucket.count > (path.includes('/auth/') ? 20 : 600)) throw new ApiError(429, 'RATE_LIMITED');
+      // En el auditorio cientos de celulares comparten la IP pública del Wi-Fi: el tope por IP es amplio,
+      // cada acceso tiene su propio límite y solo las credenciales de Studio/proyector son estrictas.
+      const ip = clientIp(req);
+      const client = req.headers.cookie ? hash(req.headers.cookie).slice(0, 32) : null;
+      if (limited(`ip:${ip}`, limits.ip) || (client && limited(`client:${client}`, limits.client)) || (['/api/auth/presenter', '/api/auth/projector'].includes(path) && limited(`credentials:${ip}`, limits.credentials))) throw new ApiError(429, 'RATE_LIMITED');
       if (!['GET', 'HEAD'].includes(req.method)) {
         const origin = req.headers.origin;
         if (origin) {
@@ -249,7 +288,7 @@ export function createApp(options = {}) {
           return complete({id,teamId,name,reused:false});
         });
         for(const client of clients) if(client.actor.id === result.id || (existingActor?.role === 'PARTICIPANT' && client.actor.id === existingActor.id)) { client.res.end(); clients.delete(client); }
-        emit(row.id,'team.progress');
+        emitTeamProgress(row.id, result.teamId);
         return json(res,result.reused ? 200 : 201,{sessionId:row.id,statisticsCode:row.statistics_code,teamId:result.teamId,teamName:result.name,maxMembers:MAX_TEAM_MEMBERS});
       }
       if (path === '/api/auth/logout' && req.method === 'POST') {
@@ -295,7 +334,8 @@ export function createApp(options = {}) {
           res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' });
           res.write(`event: state\ndata: ${JSON.stringify(state(id, actor))}\n\n`);
           const c = { actor, res, expires, tokenHash }; clients.add(c);
-          const presence = () => { if (actor.role === 'PARTICIPANT') { emit(id, 'presence.updated', 'PRESENTER'); emit(id, 'presence.updated', 'PROJECTOR'); } };
+          // Conexiones y reconexiones masivas: el contador de conectados se agrupa cada 250 ms.
+          const presence = () => { if (actor.role === 'PARTICIPANT') emitStaff(id, 'presence.updated'); };
           presence();
           req.on('close', () => { if (clients.delete(c)) presence(); }); return;
         }
@@ -377,9 +417,10 @@ export function createApp(options = {}) {
           authorize(actor, id, 'PRESENTER'); const b = await body(req);
           const actions = ['ASSIGN','UNASSIGN','REVEAL','HIDE','RESOLVE','SHARE','LEARNING','END_SHARE'];
           if (!actions.includes(b.action) || (!['LEARNING','END_SHARE'].includes(b.action) && (!text(b.teamId, 100) || !text(b.code, 20)))) throw new ApiError(400, 'INVALID_COMMAND');
-          let reviewHidden = false;
+          let reviewHidden = false, affectedTeam = b.teamId;
           const result = transaction(db, () => {
             const s = getSession(id), share = incidentShare(id);
+            affectedTeam ??= share.teamId;
             const find = () => db.prepare('SELECT * FROM incident_assignments WHERE session_id=? AND team_id=? AND code=?').get(id, b.teamId, b.code);
             const setStatus = (status, column) => db.prepare(`UPDATE incident_assignments SET status=?${column ? `,${column}=?` : ''} WHERE session_id=? AND team_id=? AND code=?`).run(...[status, ...(column ? [Date.now()] : []), id, b.teamId, b.code]);
             if (['SHARE','LEARNING','END_SHARE'].includes(b.action) && b.expectedVersion !== share.version) throw new ApiError(409, 'INCIDENT_SHARE_CONFLICT');
@@ -402,6 +443,11 @@ export function createApp(options = {}) {
               if (!row) throw new ApiError(404, 'INCIDENT_NOT_FOUND');
               if (b.action === 'UNASSIGN') {
                 db.prepare('DELETE FROM incident_assignments WHERE session_id=? AND team_id=? AND code=?').run(id, b.teamId, b.code);
+                if (incidentByCode(b.code).fixtureVariant === 'assertionless_test') {
+                  const team = JSON.parse(db.prepare('SELECT data FROM teams WHERE id=?').get(b.teamId).data);
+                  team.project = removeIncidentVariant(team.project, 'assertionless_test');
+                  db.prepare('UPDATE teams SET data=? WHERE id=?').run(JSON.stringify(team), b.teamId);
+                }
                 if (share.visible && share.teamId === b.teamId && share.code === b.code) saveShare(id, { visible: false, version: share.version + 1 });
               }
               if (['REVEAL','SHARE'].includes(b.action) && (s.activePhase !== row.phase || !['ACTIVE','PAUSED'].includes(s.status))) throw new ApiError(409, 'INCIDENT_PHASE_MISMATCH');
@@ -420,7 +466,7 @@ export function createApp(options = {}) {
             db.prepare('INSERT INTO phase_actions(session_id,actor_id,version,data,timestamp) VALUES (?,?,?,?,?)').run(id, actor.id, s.version, JSON.stringify({ action: 'INCIDENT_' + b.action, teamId: b.teamId ?? share.teamId ?? null, code: b.code ?? share.code ?? null }), Date.now());
             return state(id, actor);
           });
-          emit(id, 'incident.updated');
+          emit(id, 'incident.updated', teamAudience(affectedTeam));
           if (reviewHidden) { emit(id, 'team.review.updated', 'PRESENTER'); emit(id, 'team.review.updated', 'PROJECTOR'); }
           return json(res, 200, result);
         }
@@ -438,7 +484,7 @@ export function createApp(options = {}) {
             db.prepare("UPDATE incident_assignments SET status='acknowledged',response=? WHERE session_id=? AND team_id=? AND code=?").run(JSON.stringify({ choice: b.choice, justification: b.justification.trim(), at: Date.now() }), id, actor.team_id, b.code);
             return state(id, actor);
           });
-          emit(id, 'incident.updated'); return json(res, 200, result);
+          emitTeamProgress(id, actor.team_id, 'incident.updated'); return json(res, 200, result);
         }
         if (route === 'deliverable-review' && req.method === 'POST') {
           // Studio acepta una entrega o pide revisarla; queda auditado y el equipo lo ve al instante.
@@ -453,7 +499,7 @@ export function createApp(options = {}) {
             db.prepare('INSERT INTO phase_actions(session_id,actor_id,version,data,timestamp) VALUES (?,?,?,?,?)').run(id, actor.id, getSession(id).version, JSON.stringify({ action: 'DELIVERABLE_' + b.decision, teamId: b.teamId, phase: b.phase }), Date.now());
             return state(id, actor);
           });
-          emit(id, 'team.progress'); return json(res, 200, result);
+          emit(id, 'team.progress', teamAudience(b.teamId)); return json(res, 200, result);
         }
         if (route === 'phase-notes' && req.method === 'POST') {
           authorize(actor,id,'PRESENTER');
@@ -523,7 +569,7 @@ export function createApp(options = {}) {
             db.prepare('INSERT INTO idempotency VALUES (?,?,?,?,?)').run(id, actor.id, b.idempotencyKey, request, JSON.stringify(response));
             return response;
           });
-          emit(id, 'team.progress'); return json(res, 200, result);
+          emitTeamProgress(id, actor.team_id); return json(res, 200, result);
         }
         throw new ApiError(405, 'METHOD_NOT_ALLOWED');
       }
@@ -576,7 +622,7 @@ export function createApp(options = {}) {
     for (const [key, value] of rates) if (value.until < Date.now()) rates.delete(key);
   }, 15000);
   heartbeat.unref();
-  return { server, db, close: async () => { clearInterval(heartbeat); for (const c of clients) c.res.end(); await new Promise(resolve => server.close(resolve)); db.close(); } };
+  return { server, db, close: async () => { clearInterval(heartbeat); for (const timer of coalesced.values()) clearTimeout(timer); for (const c of clients) c.res.end(); await new Promise(resolve => server.close(resolve)); db.close(); } };
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const app = createApp();

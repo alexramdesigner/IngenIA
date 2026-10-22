@@ -493,7 +493,7 @@ Los checks de esta sección acreditan las comprobaciones HTTP/SSE del DEMO actua
 
 ### Pruebas adicionales
 - [ ] Unitarias para máquina de estados y permisos; integración para APIs y colas; end-to-end con roles y múltiples navegadores.
-- [ ] Simulación de carga con cantidad objetivo de dispositivos definida antes del evento, probando picos de QR, generaciones simultáneas y reintentos.
+- [ ] Simulación de carga con cantidad objetivo de dispositivos definida antes del evento, probando picos de QR, generaciones simultáneas y reintentos. — *Avance: `npm run load` simula 300 participantes (50 equipos) con picos de registro y entregas simultáneas; falta ejecutarla contra producción y la red del auditorio.*
 - [ ] Accesibilidad, tamaño de texto y funcionamiento en teléfonos de gama media, Android/iOS.
 - [ ] Ensayo de taller completo de dos horas, dos sesiones aisladas y recuperación ante desconexiones.
 

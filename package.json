@@ -13,7 +13,8 @@
     "test": "node --test tests/*.test.mjs",
     "check": "node scripts/check.mjs",
     "backup": "node --env-file-if-exists=.env scripts/backup.mjs",
-    "icons": "node scripts/icons.mjs"
+    "icons": "node scripts/icons.mjs",
+    "load": "node scripts/load-test.mjs"
   },
   "devDependencies": {
     "@phosphor-icons/core": "2.1.1"

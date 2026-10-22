@@ -12,9 +12,17 @@
 
 `GET /healthz` verifica proceso y acceso a base de datos. stdout emite JSON con requestId, método, estado y duración; los errores internos no registran cuerpos, contraseñas ni prompts. Todavía faltan paneles, métricas agregadas, trazas y alertas. Los logs actuales no cuentan conexiones activas SSE como peticiones terminadas.
 
-Límites iniciales: 20 peticiones de autenticación/minuto/IP, 600 peticiones generales/minuto/IP, 5 streams por identidad, 16 KiB por petición, 3 generaciones por equipo, expiración máxima 24 horas. Ajustar después de probar la red del auditorio: muchos asistentes detrás de una IP compartida pueden activar estos límites. No confiar en X-Forwarded-For sin una política de proxy conocido; la implementación actual usa la IP del socket.
+Límites por minuto (configurables con `RATE_LIMIT_*_PER_MIN`): 6000 por IP, porque en el auditorio cientos de celulares comparten la IP pública del Wi-Fi; 600 por acceso (cookie); 20 intentos de contraseña de Studio o enlace de proyector por IP. Detrás de un proxy HTTPS definir `TRUST_PROXY=true` para usar la IP real; sin proxy, dejarlo en `false`. Otros límites: 5 streams por identidad, 16 KiB por petición, 3 generaciones por equipo, expiración máxima 24 horas. Ajustar después de probar la red del auditorio: muchos asistentes detrás de una IP compartida pueden activar estos límites. No confiar en X-Forwarded-For sin una política de proxy conocido; la implementación actual usa la IP del socket.
 
 La contraseña de arranque controla las dos salas: la cookie resultante solo autoriza la elegida al autenticar. No hay cuentas personales de conferencista ni revocación administrativa todavía. Para invalidar accesos activos, detener el servicio y eliminar los registros de `tokens` desde una herramienta SQLite autorizada; cambiar la contraseña evita nuevos ingresos pero no revoca automáticamente cookies existentes.
+
+## Prueba de carga
+
+`npm run load` levanta un servidor propio con base temporal (no toca `data/`), registra 300 participantes en 50 equipos, abre 302 conexiones en vivo y recorre las fases con ráfagas de entregas, incidentes, pausa y cierre. Reporta latencias p50/p95/máx, tiempo de difusión a todas las pantallas, datos recibidos, memoria y consistencia final; termina con código 1 si alguna pantalla queda desactualizada o hay errores. `--teams` y `--members` ajustan la cantidad.
+
+Resultado de referencia (22 oct 2026, portátil de desarrollo): 300/300 registros en 0,3 s; difusión de un cambio de fase a 302 pantallas en 24–43 ms; ráfaga de 50 entregas simultáneas en 96–203 ms; Studio recibió 59 eventos; 133 MB de memoria; sin errores. Con 600 participantes también terminó sin errores ni pantallas desactualizadas.
+
+Para sostener esa carga, cada difusión calcula una sola instantánea compartida, las entregas de un equipo solo se envían a sus integrantes y las actualizaciones de Studio y proyector por entregas o conexiones se agrupan cada 250 ms. Repetir la prueba en el servidor de producción y desde la red del auditorio antes del evento.
 
 ## Respaldos y recuperación
 

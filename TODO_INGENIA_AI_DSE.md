@@ -86,7 +86,7 @@ Cada fase debe mostrar en participantes: nombre, objetivo, instrucciones de 2–
 ## P1 · Calidad, accesibilidad y seguridad
 
 - [ ] QA de roles: participante de equipo A nunca ve incidentes o respuestas privados de B; proyector no requiere permisos de docente.
-- [ ] QA de estado en tiempo real con 50 equipos y hasta 300 asistentes; reconexiones y cambios de modo simultáneos.
+- [x] QA de estado en tiempo real con 50 equipos y hasta 300 asistentes; reconexiones y cambios de modo simultáneos. — *Hecho: `npm run load` (300 y 600 participantes sin errores; ver `docs/OPERACION.md`). Falta repetirla en producción y en la red del auditorio.*
 - [ ] Pruebas de idempotencia de compartir incidente, reabrir fase, pausar temporizador y doble envío.
 - [ ] Responsive móvil/tableta, controles táctiles, navegación con teclado, lectores de pantalla, contraste AA y estados vacío/cargando/error/sin conexión.
 - [ ] No usar secretos reales, código ejecutable riesgoso ni datos personales en fixtures. Mostrar «SIMULACIÓN» en prototipos y alertas.

@@ -48,7 +48,7 @@ function participantLogin() {
   <form id="login" class="join-form">
     <section class="join-card" aria-label="Inscripción al taller">
       <label class="join-field"><span class="field-icon">${icon('person')}</span><span class="field-content"><span class="field-label">Nombre completo</span><input name="fullName" required minlength="3" maxlength="120" autocomplete="name" placeholder="Ej. Juan Pérez"></span></label>
-      <label class="join-field"><span class="field-icon">${icon('email')}</span><span class="field-content"><span class="field-label">Correo institucional</span><input name="email" type="email" required maxlength="254" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="tu@ucundinamarca.edu.co"></span></label>
+      <label class="join-field"><span class="field-icon">${icon('email')}</span><span class="field-content"><span class="field-label">Correo electrónico</span><input name="email" type="email" required maxlength="254" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="tu@ucundinamarca.edu.co"></span></label>
       <label class="join-field"><span class="field-icon">${joinIcon('person')}</span><span class="field-content"><span class="field-label">Nombre de tu equipo</span><input name="name" required maxlength="60" autocomplete="off" placeholder="Ej. Los Innovadores" aria-describedby="team-hint team-search-status" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="team-suggestions"></span></label>
       <input type="hidden" name="teamId" value=""><ul id="team-suggestions" role="listbox" aria-label="Equipos de tu sala" hidden></ul><p id="team-search-status" class="join-hint" role="status"></p>
       <h2>Selecciona tu sesión</h2>

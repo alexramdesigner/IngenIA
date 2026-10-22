@@ -118,6 +118,12 @@ export function applyIncidentVariant(project, variant) {
   latest.scenarios.push({ name: `Cancelar una ${type.entity}`, result: 'PASS', detail: 'La prueba ejecuta la cancelación, pero no compara el resultado con lo esperado.', variant });
   return p;
 }
+// Anular la asignación revierte la variante: la prueba sin aserciones desaparece de las versiones.
+export function removeIncidentVariant(project, variant) {
+  const p = structuredClone(project ?? {});
+  for (const version of p.versions ?? []) version.scenarios = version.scenarios.filter(sc => sc.variant !== variant);
+  return p;
+}
 // Nueva iteración: Construcción y Verificación se archivan y vuelven a empezar; el historial se conserva.
 export function startIteration(project, previousIteration) {
   const p = structuredClone(project ?? {});
