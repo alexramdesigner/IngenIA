@@ -115,12 +115,15 @@ export function createApp(options = {}) {
   }
   function state(id, actor, snap = snapshot(id)) {
     const { s, teams, summary, memberCount, once, share } = snap;
-    const result = { ...s, statisticsCode: snap.codes.statistics_code, serverTime: Date.now(), permissions: permissions(s, actor.role), role: actor.role, summary };
+    const result = { ...s, statisticsCode: snap.codes.statistics_code, serverTime: Date.now(), permissions: permissions(s, actor.role), role: actor.role, summary, actorId: actor.id };
     if (['PRESENTER','PROJECTOR'].includes(actor.role)) result.teamReview = snap.review;
     if (actor.role === 'PROJECTOR') {
       result.incidentShare = once('projectorIncident', () => projectorIncident(share, share.visible ? teams.find(t => t.id === share.teamId)?.name : null));
       // Auditorio: solo nombre del equipo y fases entregadas, sin integrantes ni contenido.
       result.leaderboard = once('leaderboard', () => teams.map(t => ({ name: t.name, completed: delivered(t.project).length })).sort((a, b) => b.completed - a.completed || a.name.localeCompare(b.name, 'es')));
+    }
+    if (actor.role === 'PRESENTER' || actor.role === 'PARTICIPANT') {
+      result.questions = db.prepare(`SELECT q.id,q.content,q.phase,q.created_at AS createdAt,q.answered,p.full_name AS fullName,t.name AS teamName FROM live_questions q LEFT JOIN participant_profiles p ON p.identity_id=q.actor_id LEFT JOIN identities i ON i.id=q.actor_id LEFT JOIN teams t ON t.id=i.team_id WHERE q.session_id=?${actor.role === 'PARTICIPANT' ? ' AND q.actor_id=?' : ''} ORDER BY q.id DESC LIMIT 100`).all(...(actor.role === 'PARTICIPANT' ? [id,actor.id] : [id]));
     }
     if (actor.role === 'PRESENTER') {
       result.joinCode = snap.codes.join_code;
@@ -194,7 +197,7 @@ export function createApp(options = {}) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; frame-src 'none'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self'; img-src 'self' data:; frame-src 'none'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     try {
       const url = new URL(req.url, 'http://localhost');
       const path = url.pathname.replace(/^\/api\/(studio|projection)(?=\/)/, '/api');
@@ -321,13 +324,66 @@ export function createApp(options = {}) {
       if (path === '/api/me' && req.method === 'GET') {
         const a = authenticate(req); return json(res, 200, { sessionId: a.session_id, role: a.role });
       }
-      const match = new RegExp(`^/api/sessions/([a-z]+)/(state|events|phase-command|phase-notes|team-review|team-admin|deliverable-review|incidents|incident-response|reset|projector-access|report|actions/(${Object.keys(ACTION_PHASE).join('|')}))$`).exec(path);
+      const match = new RegExp(`^/api/sessions/([a-z]+)/(state|events|questions|prerequisite|export|phase-command|phase-notes|team-review|team-admin|deliverable-review|incidents|incident-response|reset|projector-access|report|actions/(${Object.keys(ACTION_PHASE).join('|')}))$`).exec(path);
       if (match) {
         const [, id, route, action] = match;
         const actor = authenticate(req); authorize(actor, id);
+        if (route === 'prerequisite' && req.method === 'POST') {
+          authorize(actor,id,'PARTICIPANT'); const b=await body(req);
+          if (!['discovery','specification','architecture'].includes(b.action)) throw new ApiError(400,'INVALID_COMMAND');
+          const result=transaction(db,()=>{
+            const s=getSession(id); requireActivePhase(s,4);
+            if (b.expectedVersion !== s.version) throw new ApiError(409,'VERSION_CONFLICT');
+            const phase=ACTION_PHASE[b.action];
+            const team=JSON.parse(db.prepare('SELECT data FROM teams WHERE id=? AND session_id=?').get(actor.team_id,id).data);
+            if (isDelivered(team.project.deliverables?.[phase])) throw new ApiError(409,'PREREQUISITE_ALREADY_SENT');
+            team.project=applyDemo(team.project,b.action,{...b,draft:false},{iteration:s.iteration??1});
+            db.prepare('UPDATE teams SET data=? WHERE id=?').run(JSON.stringify(team),actor.team_id);
+            return state(id,actor);
+          });
+          emitTeamProgress(id,actor.team_id);return json(res,200,result);
+        }
+        if (route === 'questions' && req.method === 'POST') {
+          const b = await body(req);
+          if (actor.role === 'PRESENTER') {
+            if (!Number.isSafeInteger(b.id)) throw new ApiError(400,'INVALID_QUESTION');
+            const changed = db.prepare('UPDATE live_questions SET answered=1 WHERE id=? AND session_id=?').run(b.id,id);
+            if (!changed.changes) throw new ApiError(404,'QUESTION_NOT_FOUND');
+          } else {
+            authorize(actor,id,'PARTICIPANT');
+            const s = getSession(id);
+            if (!['ACTIVE','PAUSED'].includes(s.status)) throw new ApiError(403,'QUESTIONS_CLOSED');
+            if (typeof b.content !== 'string' || b.content.trim().length < 5 || b.content.trim().length > 1000) throw new ApiError(400,'INVALID_QUESTION');
+            const last = db.prepare('SELECT created_at FROM live_questions WHERE session_id=? AND actor_id=? ORDER BY id DESC LIMIT 1').get(id,actor.id);
+            if (last && Date.now()-last.created_at < 5000) throw new ApiError(429,'RATE_LIMITED');
+            db.prepare('INSERT INTO live_questions(session_id,actor_id,content,phase,created_at) VALUES (?,?,?,?,?)').run(id,actor.id,b.content.trim(),s.activePhase,Date.now());
+          }
+          emit(id,'question.updated',c => c.actor.role === 'PRESENTER' || c.actor.id === actor.id || (actor.role === 'PRESENTER' && c.actor.role === 'PARTICIPANT'));
+          return json(res,200,state(id,actor));
+        }
         if (route === 'state' && req.method === 'GET') return json(res, 200, state(id, actor));
         if (route === 'report' && req.method === 'GET') {
           authorize(actor, id, 'PARTICIPANT'); return json(res, 200, { sessionId: id, statisticsCode: state(id, actor).statisticsCode, mode: 'DEMO', warning: 'Simulación educativa; no es certificación ni auditoría real.', team: state(id, actor).team });
+        }
+        if (route === 'export' && req.method === 'GET') {
+          authorize(actor, id, 'PRESENTER');
+          const snap = snapshot(id);
+          const lines = ['equipo,integrantes,fases_completadas,proyecto,decision_liberacion,incidentes_resueltos'];
+          for (const team of snap.teams) {
+            const count = snap.memberCount(team.id);
+            const comp = delivered(team.project).join(';');
+            const proj = team.project.deliverables?.[1]?.data?.projectType ?? '';
+            const dec = team.project.deliverables?.[6]?.data?.decision ?? '';
+            const incs = snap.incidents.filter(i => i.teamId === team.id && i.status === 'resolved').map(i => i.code).join(';');
+            const safe = str => `"${String(str ?? '').replace(/"/g, '""')}"`;
+            lines.push([safe(team.name), count, safe(comp), safe(proj), safe(dec), safe(incs)].join(','));
+          }
+          res.writeHead(200, {
+            'Content-Type': 'text/csv; charset=utf-8',
+            'Content-Disposition': `attachment; filename="resumen-${id}.csv"`
+          });
+          res.end(lines.join('\n'));
+          return;
         }
         if (route === 'events' && req.method === 'GET') {
           const { token } = tokenFor(req);
@@ -382,6 +438,7 @@ export function createApp(options = {}) {
           const result = transaction(db, () => {
             const removeMember = memberId => {
               db.prepare('DELETE FROM tokens WHERE identity_id=?').run(memberId);
+              db.prepare('DELETE FROM live_questions WHERE actor_id=?').run(memberId);
               db.prepare('DELETE FROM participant_notes WHERE identity_id=?').run(memberId);
               db.prepare('DELETE FROM participant_profiles WHERE identity_id=?').run(memberId);
               db.prepare('DELETE FROM identities WHERE id=?').run(memberId);
@@ -505,7 +562,7 @@ export function createApp(options = {}) {
           const participants = db.prepare("SELECT id FROM identities WHERE session_id=? AND role='PARTICIPANT'").all(id).map(r => r.id);
           const result = transaction(db, () => {
             const old = getSession(id);
-            for (const table of ['participant_notes', 'participant_profiles']) db.prepare(`DELETE FROM ${table} WHERE session_id=?`).run(id);
+            for (const table of ['live_questions', 'participant_notes', 'participant_profiles']) db.prepare(`DELETE FROM ${table} WHERE session_id=?`).run(id);
             db.prepare("DELETE FROM tokens WHERE identity_id IN (SELECT id FROM identities WHERE session_id=? AND role='PARTICIPANT')").run(id);
             db.prepare("DELETE FROM identities WHERE session_id=? AND role='PARTICIPANT'").run(id);
             for (const table of ['incident_assignments', 'incident_shares', 'team_names', 'team_reviews', 'idempotency', 'events', 'phase_actions']) db.prepare(`DELETE FROM ${table} WHERE session_id=?`).run(id);
@@ -610,12 +667,22 @@ export function createApp(options = {}) {
       }
       if (path === '/api/auth/projector' && req.method === 'POST') {
         const b = await body(req);
-        if (!text(b.token, 100)) throw new ApiError(401, 'INVALID_CREDENTIALS');
-        const row = db.prepare("SELECT t.* FROM tokens t JOIN identities i ON i.id=t.identity_id WHERE t.hash=? AND t.expires>? AND i.role='PROJECTOR'").get(hash(b.token), Date.now());
-        if (!row) throw new ApiError(401, 'INVALID_CREDENTIALS');
-        // El enlace es de un solo uso; se intercambia por cookie HttpOnly.
-        db.prepare('DELETE FROM tokens WHERE hash=?').run(hash(b.token));
-        issue(res, { id: row.identity_id }); return json(res, 200, { ok: true });
+        if (typeof b.token === 'string' && b.token.length > 0) {
+          if (!text(b.token, 100)) throw new ApiError(401, 'INVALID_CREDENTIALS');
+          const row = db.prepare("SELECT t.* FROM tokens t JOIN identities i ON i.id=t.identity_id WHERE t.hash=? AND t.expires>? AND i.role='PROJECTOR'").get(hash(b.token), Date.now());
+          if (!row) throw new ApiError(401, 'INVALID_CREDENTIALS');
+          // El enlace es de un solo uso; se intercambia por cookie HttpOnly.
+          db.prepare('DELETE FROM tokens WHERE hash=?').run(hash(b.token));
+          issue(res, { id: row.identity_id }); return json(res, 200, { ok: true });
+        }
+        if (text(b.sessionId, 40)) {
+          getSession(b.sessionId);
+          const identityId = randomUUID();
+          db.prepare('INSERT INTO identities VALUES (?,?,?,NULL)').run(identityId, b.sessionId, 'PROJECTOR');
+          issue(res, { id: identityId });
+          return json(res, 200, { ok: true, sessionId: b.sessionId });
+        }
+        throw new ApiError(401, 'INVALID_CREDENTIALS');
       }
       if (!['GET', 'HEAD'].includes(req.method)) throw new ApiError(405, 'METHOD_NOT_ALLOWED');
       const aliases = { '/': '/apps/participant/index.html', '/studio': '/apps/presenter/index.html', '/presenter': '/apps/presenter/index.html', '/projector': '/apps/projector/index.html', '/offline.html': '/apps/participant/offline.html' };
@@ -623,7 +690,8 @@ export function createApp(options = {}) {
       const pwa = { '/manifest.webmanifest': '/apps/participant/manifest.webmanifest', '/sw.js': '/apps/participant/sw.js', '/favicon.ico': '/packages/ui/assets/icons/favicon-32.png' };
       // Los archivos PWA solo se sirven por su ruta pública, nunca por su ubicación interna.
       if ((Object.values(pwa).includes(path) || path === aliases['/offline.html']) && !path.startsWith('/packages/')) throw new ApiError(404, 'NOT_FOUND');
-      const target = aliases[path] ?? pwa[path] ?? path;
+      const rawTarget = aliases[path] ?? pwa[path] ?? path;
+      const target = decodeURIComponent(rawTarget);
       if (['/apps/presenter/index.html', '/apps/projector/index.html'].includes(target)) {
         // La página de ingreso es pública; un participante autenticado no puede usarla como consola.
         let actor;
@@ -638,12 +706,12 @@ export function createApp(options = {}) {
           if (!privileged) throw new ApiError(403, 'FORBIDDEN');
         }
       }
-      if (!['/packages/ui/assets/IMAGOTIPO_HORIZONTAL_BLANCO.png','/packages/ui/assets/fondo-verde-tecnologico.png'].includes(target) && !Object.values(pwa).includes(target) && !/^\/packages\/ui\/assets\/icons\/[a-z0-9-]+\.png$/.test(target) && !/^\/(apps|packages)\/[a-zA-Z0-9/_.-]+\.(html|css|mjs)$/.test(target)) throw new ApiError(404, 'NOT_FOUND');
+      if (!['/packages/ui/assets/HORIZONTAL BLANCO.webp','/packages/ui/assets/IMAGOTIPO_HORIZONTAL_BLANCO.png','/packages/ui/assets/fondo-verde-tecnologico.png','/packages/ui/assets/fondo-tecnologico-azul-petroleo.png','/packages/ui/assets/Fondo tecnológico abstracto azul petróleo.png'].includes(target) && !Object.values(pwa).includes(target) && !/^\/packages\/ui\/assets\/icons\/[a-z0-9-]+\.png$/.test(target) && !/^\/(apps|packages)\/[a-zA-Z0-9/_.\s-]+\.(html|css|mjs|webp|png)$/.test(target)) throw new ApiError(404, 'NOT_FOUND');
       if (target.endsWith('.html') && !Object.values(aliases).includes(target)) throw new ApiError(404, 'NOT_FOUND');
       const file = resolve(root, `.${target}`);
       if (!file.startsWith(root) || target.includes('..')) throw new ApiError(404, 'NOT_FOUND');
       let content; try { content = readFileSync(file); } catch { throw new ApiError(404, 'NOT_FOUND'); }
-      res.writeHead(200, { 'Content-Type': ({ '.png': 'image/png', '.html': 'text/html; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.webmanifest': 'application/manifest+json; charset=utf-8' })[extname(file)], ...(path === '/sw.js' ? { 'Service-Worker-Allowed': '/' } : {}) });
+      res.writeHead(200, { 'Content-Type': ({ '.png': 'image/png', '.webp': 'image/webp', '.html': 'text/html; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.webmanifest': 'application/manifest+json; charset=utf-8' })[extname(file)], ...(path === '/sw.js' ? { 'Service-Worker-Allowed': '/' } : {}) });
       res.end(req.method === 'HEAD' ? undefined : content);
     } catch (error) {
       if (res.headersSent) { res.end(); return; }

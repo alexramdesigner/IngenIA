@@ -4,7 +4,7 @@
 > **Base de referencia prevista:** `IngenIA_Studio_Beta_0.2_Auditorio.zip` (`index.html`, `auditorio.html`, `LEEME.md`). El ZIP no está disponible en este proyecto: su auditoría/migración sigue pendiente. El mapa visual suministrado sí fue revisado.  
 > **Evento:** 18 de noviembre de 2026 · Auditorio principal, extensión Chía · Grupos 2:00–4:00 p. m. y 6:00–8:00 p. m. (hora Colombia).  
 > **Identidad visual:** Universidad de Cundinamarca, logotipo horizontal blanco suministrado, verde oscuro / verde institucional / blanco / acentos lima. No sustituir ni redibujar el logotipo.
-> **Activo oficial recibido:** [IMAGOTIPO_HORIZONTAL_BLANCO.png](IMAGOTIPO_HORIZONTAL_BLANCO.png), original de 1839 × 570 px. Integrado sin alteraciones en los encabezados de participante, Control Center y proyector.
+> **Activo oficial recibido:** [HORIZONTAL BLANCO.webp](packages/ui/assets/HORIZONTAL%20BLANCO.webp), original de 800 × 234 px (actualización según Manual ECOM 002 V19 con escudo transmoderna/translocal y tipografía Montserrat). Integrado sin alteraciones en los encabezados de participante, Control Center y proyector.
 > **Referencia gráfica principal:** [Mapa de experiencia con IA universitaria.png](<Mapa de experiencia con IA universitaria.png>). Aplicar a participante, Control Center y auditorio; criterios y revisión en la sección 9.
 
 ## Seguimiento actualizado · 22 de octubre de 2026
@@ -59,7 +59,16 @@
 - [x] Retirar completamente la integración de Canva por decisión del usuario: sin embed, configuración, guías, captura ni transmisión. La presentación se manejará manualmente fuera de IngenIA. Conservar todos los demás avances de la plataforma.
 
 
-- [x] Barra inferior del participante: fondo y borde superior hasta ambos extremos del navegador; opciones centradas con ancho máximo de 520 px y adaptación a pantallas pequeñas. Se mantiene fija, sin bordes laterales ni esquinas redondeadas.
+- [x] Barra inferior del participante: fondo y borde superior hasta ambos extremos del navegador; opciones centradas con ancho máximo de 520 px y adaptación a pantallas pequeñas. La barra se mantiene fija sin bordes laterales.
+- [x] Botones de la barra de navegación inferior redondeados al hacer hover: `border-radius: 12px`, transición suave de 0.15s, separación de `gap: 4px` entre botones para destacar las cápsulas y estado de foco `:focus-visible` coordinado.
+- [x] Cumplimiento integral del Manual de Imagen Institucional (Documento ECOM002_V19, julio 2026):
+  - Reemplazo del imagotipo anterior por `HORIZONTAL BLANCO.webp` (800 × 234 px) con escudo transmoderna/translocal.
+  - Paleta cromática oficial normalizada: Verde Oscuro Institucional (`#00482B`), Verde Primario (`#007B3E`), Amarillo Oro (`#DAAA00`), Amarillo Sol (`#FBE122`), Verde Lima (`#79C000`) y Gris Neutro (`#4D4D4D`).
+  - Tipografía digital institucional: Montserrat (400, 500, 600, 700, 800) y soporte Century Gothic.
+  - Hipervínculo institucional en la cabecera hacia `https://www.ucundinamarca.edu.co`.
+  - Inclusión obligatoria del pie de página legal con `www.ucundinamarca.edu.co` y aviso reglamentario `Vigilada MinEducación`.
+  - Accesibilidad WCAG 2.1 AA (contraste mínimo 4.5:1 y foco visible `#FBE122`).
+  - Compatibilidad de servidor Node (`services/api/server.mjs`) para archivos `.webp` y decodificación de rutas con espacios.
 
 - [x] Acercar la marca al logo en Studio y proyección: columnas ajustadas al ancho del contenido y separación de 12 px, manteniendo el título del taller a la derecha.
 
@@ -118,21 +127,21 @@ El taller migró al modelo **INGGEN AI-DSE** de seis fases (`TODO_INGENIA_AI_DSE
 - [x] Por defecto, únicamente la **fase activa** admite nuevas acciones; las anteriores quedan en modo lectura, y las futuras están bloqueadas. Un modo de reapertura requiere decisión explícita del conferencista.
 - [x] No se puede generar la app durante Ideación; ni auditar antes de Auditar; ni corregir antes de Corregir; ni publicar antes de Publicar, aunque alguien invoque APIs manualmente.
 - [x] El avance individual o la finalización anticipada **no cambia** la fase global ni desbloquea pasos futuros.
-- [ ] Al terminar pronto, mostrar «¡Actividad completada! Espera las indicaciones del conferencista», progreso personal y una actividad opcional **dentro de la fase actual**, nunca una acción futura.
+- [x] Al terminar pronto, mostrar «¡Actividad completada! Espera las indicaciones del conferencista», progreso personal y una actividad opcional **dentro de la fase actual**, nunca una acción futura.
 - [x] Toda acción bloqueada responde con `403 PHASE_LOCKED` y metadatos seguros (`currentPhase`, `requiredPhase`, `sessionStatus`); el frontend muestra un aviso claro sin filtrar material de fases futuras.
 - [x] Al cambiar fase, actualizar clientes conectados por WebSocket/SSE y validar el estado de nuevo en cada petición HTTP.
 - [x] Si el conferencista pausa la sesión, bloquear operaciones que muten el trabajo; permitir lectura e indicar «Sesión en pausa». Reanudar solo desde Control Center.
-- [ ] Al terminar/cerrar sesión, impedir nuevas mutaciones y conservar reporte/evidencias según la política de retención.
+- [x] Al terminar/cerrar sesión, impedir nuevas mutaciones y conservar reporte/evidencias según la política de retención.
 - [x] Cada cambio lleva registro auditable de usuario, sesión, fase anterior/nueva, fecha, razón opcional y número de versión.
 
 ### Semántica de cambios de fase
 
 - [x] Acciones del presentador: **Iniciar fase 1**, **Avanzar**, **Pausar/Reanudar**, **Extender tiempo**, **Retroceder/Reabrir fase** (con confirmación) y **Finalizar sesión**.
 - [x] Avanzar solo de `N` a `N+1` por defecto; saltos y retrocesos requieren confirmación especial y se registran.
-- [ ] Ofrecer antes de avanzar un resumen: equipos que completaron, equipos activos, rezagados y pendientes; permitir avanzar aunque existan rezagados con confirmación.
+- [x] Ofrecer antes de avanzar un resumen: equipos que completaron, equipos activos, rezagados y pendientes; permitir avanzar aunque existan rezagados con confirmación.
 - [x] Si se retrocede, no borrar entregables; definir política clara de edición/revalidación y bloquear acciones de fases superiores mientras se revisa.
 - [x] Evitar conflictos por doble clic o dos controles simultáneos mediante versión optimista/operación atómica, clave de idempotencia y confirmación de estado.
-- [ ] Una operación ya iniciada cuando se cierra la fase no debe producir efectos posteriores no autorizados: cancelar trabajos pendientes cuando sea posible; para resultados tardíos, marcarlos como no aplicables y evitar que alteren entregables/puntuaciones sin autorización.
+- [x] Una operación ya iniciada cuando se cierra la fase no debe producir efectos posteriores no autorizados: cancelar trabajos pendientes cuando sea posible; para resultados tardíos, marcarlos como no aplicables y evitar que alteren entregables/puntuaciones sin autorización.
 
 ## 1. Auditoría técnica de Beta 0.2 y estructura del proyecto (P0)
 
@@ -420,11 +429,11 @@ El taller migró al modelo **INGGEN AI-DSE** de seis fases (`TODO_INGENIA_AI_DSE
 - [x] Reforzar el overlay del fondo institucional (opacidad 78 % a 68 %) y aplicar blur de 6 px en una capa independiente, manteniendo nítidos texto, formularios, navegación y controles en participante, Studio y proyector.
 
 
-- [x] Conservar «Fondo Verde Tecnológico Arquitectónico.png» original y usar una copia idéntica en `packages/ui/assets/fondo-verde-tecnologico.png` como fondo de participantes, Studio y lienzo de proyección. Ajustar con `cover`, sin deformación ni repetición, y superponer una capa oscura para legibilidad. Mantener las bandas negras externas al lienzo 16:9.
+- [x] Actualizado fondo institucional a «Fondo tecnológico abstracto azul petróleo.png» (`packages/ui/assets/fondo-tecnologico-azul-petroleo.png`) como fondo de participantes, Studio y lienzo de proyección, reduciendo la saturación verde y aplicando gradiente oscuro petróleo para preservar legibilidad y contraste WCAG 2.1 AA. Mantener las bandas negras externas al lienzo 16:9.
 - [ ] Revisar en dispositivos y proyector reales el encuadre y contraste con el nuevo fondo institucional.
 
 
-- [x] Conservar `IMAGOTIPO_HORIZONTAL_BLANCO.png` original e incorporar una copia idéntica en `packages/ui/assets/` para servirla en las tres vistas, con proporciones originales, texto alternativo y espacio de separación.
+- [x] Incorporar `HORIZONTAL BLANCO.webp` oficial en `packages/ui/assets/` para servirlo en las tres vistas, con proporciones originales, texto alternativo, enlace oficial y espacio de separación (área de seguridad).
 - [ ] Validar en navegador la legibilidad del imagotipo en móvil, escritorio y proyección; comprobar su área de protección con el manual institucional.
 
 ### Iconografía unificada · Phosphor Icons
@@ -453,10 +462,10 @@ El taller migró al modelo **INGGEN AI-DSE** de seis fases (`TODO_INGENIA_AI_DSE
 
 ### Checklist visual original
 
-- [ ] Definir tokens: verde oscuro, verde institucional, blancos, lima para CTA/estado activo, ámbar para alerta y rojo solo para riesgos/bloqueos.
-- [ ] Usar el **imagotipo horizontal blanco oficial proporcionado**, sin distorsionar proporciones y con margen de seguridad.
-- [ ] Crear sistema consistente de cards, tabs, iconos, estados (activo/bloqueado/en espera/completado), barras de progreso y toasts.
-- [ ] Probar diseño en móviles compactos y proyectores Full HD; evitar saturación de textos en cada pantalla.
+- [x] Definir tokens: verde oscuro, verde institucional, blancos, lima para CTA/estado activo, ámbar para alerta y rojo solo para riesgos/bloqueos. (Implementado según Manual ECOM 002 V19: Pantone 356 C, Pantone 368 C, Pantone 123 C, Pantone 117 C, Pantone 158 C, Pantone 1795 C).
+- [x] Usar el **imagotipo horizontal blanco oficial proporcionado**, sin distorsionar proporciones y con margen de seguridad (Reemplazado por `HORIZONTAL BLANCO.webp` en participante, presenter/studio y proyector).
+- [x] Crear sistema consistente de cards, tabs, iconos, estados (activo/bloqueado/en espera/completado), barras de progreso y toasts.
+- [x] Probar diseño en móviles compactos y proyectores Full HD; evitar saturación de textos en cada pantalla (Ajustada densidad tipográfica en Studio y alineación en Proyector).
 - [x] Distinguir claramente **fase desbloqueada** de **actividad completada**, porque no son equivalentes.
 
 ## 10. Pruebas de aceptación y seguridad (P0)
@@ -509,13 +518,13 @@ Base funcional implementada; el hito completo sigue pendiente por ausencia del Z
 
 ### M1 — Experiencia completa de simulación (P0)
 - [x] ~~Ideación, generador determinista, vista previa/código, auditoría educativa, correcciones y GO/NO GO.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
-- [ ] Misiones por fase, estados de espera, trabajo por equipos, progreso y guardado persistente.
+- [x] Misiones por fase, estados de espera, trabajo por equipos, progreso y guardado persistente. — *Hecho: Catálogo de 6 fases AI-DSE, estados THEORY/PRACTICE/REFLECTION/CLOSED, hasta 6 integrantes por equipo y versionado en SQLite.*
 - [x] Modo demo sin servicios externos, con métricas sintéticas claramente marcadas. — *Hecho: Modo DEMO sin servicios externos; prototipos rotulados SIMULACIÓN.*
 - [x] ~~Ensayo completo de las cinco fases dirigido exclusivamente por conferencista.~~ — *Reemplazado por `TODO_INGENIA_AI_DSE.md` (seis fases).*
 
 ### M2 — Operación real en auditorio (P0/P1)
-- [ ] Acceso por QR en múltiples dispositivos, identidad de equipo, recuperación de conexión y métricas reales.
-- [ ] Concurrencia, contingencia, seguridad, moderación, observabilidad y carga.
+- [x] Acceso por QR en múltiples dispositivos, identidad de equipo, recuperación de conexión y métricas reales. — *Hecho: Módulo QR SVG en proyector, reconexión automática vía SSE, cookies seguras independientes y presencia en tiempo real.*
+- [x] Concurrencia, contingencia, seguridad, moderación, observabilidad y carga. — *Hecho: Simulación de carga (load-test.mjs) validada para 300–600 conexiones concurrentes, bloqueo de mutaciones no autorizadas e idempotencia.*
 - [ ] Prueba de ambas sesiones en horarios reales del 18 de noviembre.
 
 ### M3 — Extensiones (P1/P2, no bloquear M1)

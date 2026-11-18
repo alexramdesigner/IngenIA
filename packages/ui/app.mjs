@@ -1,3 +1,6 @@
+import { createNotifier } from '/packages/ui/notifications.mjs';
+import { mountPrototypePreview } from '/packages/ui/prototype-preview.mjs';
+import { requestId } from '/packages/shared/request-id.mjs';
 import { icon } from '/packages/ui/icons.mjs';
 import { setupParticipantNav } from '/packages/ui/participant-nav.mjs';
 import { PHASES, MAX_ITERATIONS, STAGE_LABELS, LOOP_FROM, LOOP_TO } from '/packages/shared/phases.mjs';
@@ -7,7 +10,7 @@ import { PRODUCTION_URL, productionQr } from '/packages/ui/qr.mjs';
 import { canInstall, isInstalled, install } from '/packages/ui/pwa.mjs';
 const view = document.body.dataset.view;
 const app = document.querySelector('#app');
-const notice = document.querySelector('#notice');
+const showNotice = createNotifier(document.querySelector('#notice'));
 let connectionText = 'Sin conectar';
 function setConnection(text) {
   connectionText = text;
@@ -20,8 +23,9 @@ const SURVEY_QR = ''; // p. ej. '/packages/ui/assets/encuesta-qr.png'
 const WAITING_MESSAGE = 'Bienvenido en un momento daremos inicio al taller.';
 const esc = x => String(x ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 let current, stream, sessionId, offset = 0, online = false, busy = false;
-let draft = {}, pending = null;
+let draft = {}, pending = null, generationMessage = '';
 let participantTab = 'activities';
+let questionDraft='', sendingQuestion=false, questionAudio;
 let notesDraft, savingNotes = false;
 let speakerPhase=null,savingSpeakerNotes=false,reviewBusy=false,adminBusy=false;
 let speakerDrafts={};
@@ -37,7 +41,7 @@ function navigateParticipant(destination) {
 document.addEventListener('keydown', event => { if (view === 'presenter' && event.key === 'Escape' && studioMenuOpen) { setStudioMenu(false); document.querySelector('#studio-menu')?.focus(); } });
 for (const type of ['pwa:installable','pwa:installed']) document.addEventListener(type, () => { if (view === 'participant' && current && participantTab === 'profile') render(current); });
 document.addEventListener('participant:navigate', event => { if(view === 'participant') navigateParticipant(event.detail); });
-const errors = { REVIEW_VERSION_CONFLICT:'La revisión cambió desde otro Studio. Revisa la selección e inténtalo de nuevo.', REVIEW_PRACTICE_REQUIRED:'Habilita la práctica antes de proyectar un equipo.', TEAM_WORK_REQUIRED:'Este equipo todavía no ha guardado su trabajo de esta fase.', TEAM_NOT_FOUND:'El equipo no pertenece a este horario.', MEMBER_NOT_FOUND:'Este integrante ya no está registrado.', PHASE_NOTE_VERSION_CONFLICT:'Estas notas cambiaron en otro Studio. Tu borrador se conserva; recarga las notas guardadas antes de reemplazarlas.', INVALID_PHASE_NOTE:'Las notas de cada fase admiten hasta 6000 caracteres.', INVALID_TRANSITION:'Esta acción no está disponible en el momento actual.', IDENTITY_REQUIRED: 'Escribe tu nombre completo y un correo válido.', TEAM_CHANGE_NOT_ALLOWED: 'Ya estás registrado en otro equipo de este horario. Ingresa con el nombre de tu equipo original.', IDENTITY_MISMATCH: 'Este navegador pertenece a otro participante. Usa otro perfil para registrar a otra persona.', NOTES_READ_ONLY: 'Las notas están en lectura mientras la sesión está pausada o finalizada.', NOTE_VERSION_CONFLICT: 'Las notas cambiaron en otra pestaña. Copia tu borrador y recarga antes de guardar.', INVALID_NOTE: 'Las notas admiten hasta 3000 caracteres.', PHASE_LOCKED: 'Esta acción está bloqueada. Espera la fase indicada por el conferencista.', VERSION_CONFLICT: 'La sesión cambió. Revisa el estado actualizado y vuelve a intentarlo.', INVALID_CREDENTIALS: 'Credenciales incorrectas o enlace expirado.', INVALID_JOIN: 'Revisa el horario y el nombre del equipo.', TEAM_FULL: 'Este equipo ya tiene seis integrantes. Elige otro equipo o crea uno nuevo.', TEAM_SELECTION_CHANGED: 'El nombre cambió. Selecciona de nuevo el equipo sugerido.', ALREADY_IN_TEAM: 'Ya perteneces a otro equipo de esta sala. Conserva tu acceso actual.', INCOMPLETE_TEAMS: 'Hay equipos con entregas pendientes. Confirma antes de avanzar.', PROMPT_LENGTH: 'El prompt necesita entre 20 y 6000 caracteres.', DELIVERABLE_INVALID: 'Revisa la entrega: falta información o un campo es muy corto.', DISCOVERY_REQUIRED: 'Primero envíen la ficha de Descubrimiento.', SPECIFICATION_REQUIRED: 'Primero envíen la Especificación.', ARCHITECTURE_REQUIRED: 'Primero envíen la decisión de Arquitectura.', CONSTRUCTION_REQUIRED: 'Primero envíen la revisión de Construcción con IA.', VERIFICATION_REQUIRED: 'Primero envíen el hallazgo de Verificación.', PROTOTYPE_REQUIRED: 'Generen una versión del prototipo en esta iteración antes de revisarla.', INCIDENT_NOT_FOUND: 'El incidente no está asignado a este equipo.', INCIDENT_ALREADY_ASSIGNED: 'Ese incidente ya está asignado al equipo.', INCIDENT_PHASE_TAKEN: 'El equipo ya tiene un incidente en esta fase. Quítalo antes de asignar otro.', INCIDENT_PHASE_MISMATCH: 'Solo se puede revelar o compartir durante la fase del incidente.', INCIDENT_HAS_RESPONSE: 'El equipo ya respondió; no se puede ocultar.', INCIDENT_NOT_REVEALED: 'Primero revela el incidente al equipo.', INCIDENT_SHARE_CONFLICT: 'La intervención cambió desde otro Studio. Revisa el estado e inténtalo de nuevo.', INCIDENT_NOT_SHARED: 'No hay un incidente en pantalla.', INCIDENT_CLOSED: 'Este incidente ya se cerró.', RESET_DISABLED: 'El reinicio está bloqueado en este servidor (ALLOW_SESSION_RESET=false).', RESET_CONFIRMATION_REQUIRED: 'Escribe la frase de confirmación exactamente como aparece.', RESET_SESSION_ACTIVE: 'La sesión está en vivo: pausa o finaliza antes de reiniciar.', INCIDENT_RESPONSE_INVALID: 'Elige una opción y justifica la decisión (mínimo 10 caracteres).', RATE_LIMITED: 'Demasiados intentos. Espera un minuto.', ITERATION_LIMIT: 'Se alcanzó el límite de esta iteración.', UNAUTHENTICATED: 'La sesión de acceso expiró. Vuelve a ingresar.' };
+const errors = { PREREQUISITE_ALREADY_SENT:'Tu equipo ya envió esta entrega. La pantalla se actualizará.', INVALID_QUESTION:'Escribe una pregunta de 5 a 1000 caracteres.', QUESTIONS_CLOSED:'Las preguntas se habilitan durante el taller.', REVIEW_VERSION_CONFLICT:'La revisión cambió desde otro Studio. Revisa la selección e inténtalo de nuevo.', REVIEW_PRACTICE_REQUIRED:'Habilita la práctica antes de proyectar un equipo.', TEAM_WORK_REQUIRED:'Este equipo todavía no ha guardado su trabajo de esta fase.', TEAM_NOT_FOUND:'El equipo no pertenece a este horario.', MEMBER_NOT_FOUND:'Este integrante ya no está registrado.', PHASE_NOTE_VERSION_CONFLICT:'Estas notas cambiaron en otro Studio. Tu borrador se conserva; recarga las notas guardadas antes de reemplazarlas.', INVALID_PHASE_NOTE:'Las notas de cada fase admiten hasta 6000 caracteres.', INVALID_TRANSITION:'Esta acción no está disponible en el momento actual.', IDENTITY_REQUIRED: 'Escribe tu nombre completo y un correo válido.', TEAM_CHANGE_NOT_ALLOWED: 'Ya estás registrado en otro equipo de este horario. Ingresa con el nombre de tu equipo original.', IDENTITY_MISMATCH: 'Este navegador pertenece a otro participante. Usa otro perfil para registrar a otra persona.', NOTES_READ_ONLY: 'Las notas están en lectura mientras la sesión está pausada o finalizada.', NOTE_VERSION_CONFLICT: 'Las notas cambiaron en otra pestaña. Copia tu borrador y recarga antes de guardar.', INVALID_NOTE: 'Las notas admiten hasta 3000 caracteres.', PHASE_LOCKED: 'Esta acción está bloqueada. Espera la fase indicada por el conferencista.', VERSION_CONFLICT: 'La sesión cambió. Revisa el estado actualizado y vuelve a intentarlo.', INVALID_CREDENTIALS: 'Credenciales incorrectas o enlace expirado.', INVALID_JOIN: 'Revisa el horario y el nombre del equipo.', TEAM_FULL: 'Este equipo ya tiene seis integrantes. Elige otro equipo o crea uno nuevo.', TEAM_SELECTION_CHANGED: 'El nombre cambió. Selecciona de nuevo el equipo sugerido.', ALREADY_IN_TEAM: 'Ya perteneces a otro equipo de esta sala. Conserva tu acceso actual.', INCOMPLETE_TEAMS: 'Hay equipos con entregas pendientes. Confirma antes de avanzar.', PROMPT_LENGTH: 'El prompt necesita entre 20 y 6000 caracteres.', DELIVERABLE_INVALID: 'Revisa la entrega: falta información o un campo es muy corto.', DISCOVERY_REQUIRED: 'Faltan datos de Descubrimiento. Complétalos en esta pantalla antes de generar.', SPECIFICATION_REQUIRED: 'Faltan datos de Especificación (fase 2). Abre «Completar y enviar Especificación» junto al prompt para corregirlos y continuar.', ARCHITECTURE_REQUIRED: 'Faltan datos de Arquitectura. Complétalos en esta pantalla antes de generar.', CONSTRUCTION_REQUIRED: 'Primero envíen la revisión de Construcción con IA.', VERIFICATION_REQUIRED: 'Primero envíen el hallazgo de Verificación.', PROTOTYPE_REQUIRED: 'Generen una versión del prototipo en esta iteración antes de revisarla.', INCIDENT_NOT_FOUND: 'El incidente no está asignado a este equipo.', INCIDENT_ALREADY_ASSIGNED: 'Ese incidente ya está asignado al equipo.', INCIDENT_PHASE_TAKEN: 'El equipo ya tiene un incidente en esta fase. Quítalo antes de asignar otro.', INCIDENT_PHASE_MISMATCH: 'Solo se puede revelar o compartir durante la fase del incidente.', INCIDENT_HAS_RESPONSE: 'El equipo ya respondió; no se puede ocultar.', INCIDENT_NOT_REVEALED: 'Primero revela el incidente al equipo.', INCIDENT_SHARE_CONFLICT: 'La intervención cambió desde otro Studio. Revisa el estado e inténtalo de nuevo.', INCIDENT_NOT_SHARED: 'No hay un incidente en pantalla.', INCIDENT_CLOSED: 'Este incidente ya se cerró.', RESET_DISABLED: 'El reinicio está bloqueado en este servidor (ALLOW_SESSION_RESET=false).', RESET_CONFIRMATION_REQUIRED: 'Escribe la frase de confirmación exactamente como aparece.', RESET_SESSION_ACTIVE: 'La sesión está en vivo: pausa o finaliza antes de reiniciar.', INCIDENT_RESPONSE_INVALID: 'Elige una opción y justifica la decisión (mínimo 10 caracteres).', RATE_LIMITED: 'Demasiados intentos. Espera un minuto.', ITERATION_LIMIT: 'Se alcanzó el límite de esta iteración.', UNAUTHENTICATED: 'La sesión de acceso expiró. Vuelve a ingresar.' };
 async function api(path, data) {
   const res = await fetch(({ presenter: '/api/studio', projector: '/api/projection', participant: '/api' })[view] + path, { method: data ? 'POST' : 'GET', headers: data ? { 'Content-Type': 'application/json' } : {}, body: data ? JSON.stringify(data) : undefined });
   const result = await res.json();
@@ -112,7 +116,7 @@ function bindTeamSearch() {
 }
 function login() {
   current = null;
-  notesDraft = undefined;
+  notesDraft = undefined; questionDraft='';
   speakerPhase=null;speakerDrafts={};
   stream?.close(); stream = null; online = false; sessionId = null;
   setConnection('Sin conectar');
@@ -123,16 +127,16 @@ function login() {
   if (view === 'participant') { app.innerHTML = participantLogin(); bindTeamSearch(); }
   if (view === 'projector') app.innerHTML = projectorWelcome(null);
   app.querySelector('form')?.addEventListener('submit', async e => {
-    e.preventDefault(); notice.textContent = '';
+    e.preventDefault(); showNotice('');
     const submit = e.target.querySelector('[type=submit], button');
     if (submit.disabled) return;
     submit.disabled = true;
     try { const values = Object.fromEntries(new FormData(e.target)); if (!values.teamId) delete values.teamId; const result = await api('/auth/' + (view === 'presenter' ? 'presenter' : 'join'), values); sessionId = result.sessionId; await connect(); }
-    catch (error) { notice.textContent = error.message; }
+    catch (error) { showNotice(error.message, 'error'); }
     finally { submit.disabled = false; }
   });
 }
-function activity(s) { return workshopActivity(s, { draft, online, busy }); }
+function activity(s) { return workshopActivity(s, { draft, online, busy, generationMessage }); }
 function iterationLabel(s) { return (s.iteration ?? 1) > 1 && [LOOP_TO, LOOP_FROM].includes(s.activePhase) ? ` · Iteración ${s.iteration}/${MAX_ITERATIONS}` : ''; }
 // Instalar como app: botón cuando el navegador lo permite; en iPhone, instrucciones de Safari.
 function installCard() {
@@ -159,11 +163,11 @@ function participantScreen(s, workshop) {
     <div class="activity-tiles">
       <button class="activity-tile" data-go="workshop"><span class="tile-icon tile-rocket">${icon('rocket')}</span><strong>Taller</strong><span>Misión de la fase y entregas de tu equipo.</span></button>
       <button class="activity-tile" data-go="notes"><span class="tile-icon tile-notes">${icon('notes')}</span><strong>Notas del evento</strong><span>Guarda tus ideas, dudas y aprendizajes del taller.</span></button>
-      <button class="activity-tile" data-go="questions"><span class="tile-icon tile-chat">${icon('chat')}</span><strong>Preguntas en vivo</strong><span>Comparte tus dudas.</span><small>Próximamente</small></button>
+      <button class="activity-tile" data-go="questions"><span class="tile-icon tile-chat">${icon('chat')}</span><strong>Preguntas en vivo</strong><span>Comparte tus dudas.</span><small>Durante el taller</small></button>
       <button class="activity-tile" ${surveyOpen ? 'data-go="survey"' : 'disabled'}><span class="tile-icon tile-chart">${icon('chart')}</span><strong>Encuesta</strong><span>Comparte tu experiencia.</span>${surveyOpen ? '' : '<small>Disponible al final de la presentación</small>'}</button>
     </div><p class="student-page-note">Seis fases AI-DSE, un mismo equipo. El conferencista habilita cada actividad.</p>`;
   if (participantTab === 'home') return `<h1>Tu experiencia con IA</h1><section class="card"><h2>${esc(status)}</h2><p>${esc(phase?.mission ?? 'Prepara tu equipo. Las actividades se habilitan durante la explicación.')}</p><p>${esc(s.team.name)} · ${s.team.memberCount}/${s.team.maxMembers} integrantes</p><button data-go="activities">Ver actividades</button><button class="secondary" data-go="workshop">Ir al taller</button></section>`;
-  if (participantTab === 'questions') return `<div class="student-page-title"><button class="student-back" data-go="activities" aria-label="Volver a Actividades">${icon('back')}</button><h1>Preguntas en vivo</h1></div><section class="card"><h2>Próximamente</h2><p>Aquí podrás compartir tus dudas con el conferencista durante la presentación.</p></section>`;
+  if (participantTab === 'questions') return `<div class="student-page-title"><button class="student-back" data-go="activities" aria-label="Volver a Actividades">${icon('back')}</button><h1>Preguntas en vivo</h1></div><form id="question-form" class="card"><label>¿Qué quieres preguntar?<textarea name="question" minlength="5" maxlength="1000" required placeholder="Escribe tu duda para el conferencista…">${esc(questionDraft)}</textarea></label><button ${!online || sendingQuestion || !['ACTIVE','PAUSED'].includes(s.status)?'disabled':''}>${sendingQuestion?'Enviando…':'Enviar pregunta'}</button><p class="muted">${['ACTIVE','PAUSED'].includes(s.status)?'Tu pregunta llegará a Studio. Solo tú y el conferencista pueden verla.':'Las preguntas se habilitan al iniciar el taller.'}</p></form><section class="card"><h2>Mis preguntas</h2>${questionList(s.questions)}</section>`;
   if (participantTab === 'survey') return `<div class="student-page-title"><button class="student-back" data-go="activities" aria-label="Volver a Actividades">${icon('back')}</button><h1>Encuesta de satisfacción</h1></div><section class="card survey-card">${surveyOpen ? `<h2>Comparte tu experiencia</h2><p>Escanea el código QR o abre el enlace para responder la encuesta.</p><div class="survey-qr">${SURVEY_QR ? `<img src="${esc(SURVEY_QR)}" alt="Código QR de la encuesta de satisfacción" width="240" height="240">` : '<p class="muted">Código QR pendiente</p>'}</div><p class="survey-link">${SURVEY_URL ? `<a href="${esc(SURVEY_URL)}" target="_blank" rel="noopener">${esc(SURVEY_URL)}</a>` : '<span class="muted">Enlace pendiente</span>'}</p>` : '<h2>Disponible al final de la presentación</h2><p>El conferencista habilitará la encuesta al cerrar la presentación.</p>'}</section>`;
   return `<h1>Mi perfil</h1><section class="card"><h2>${esc(s.profile?.fullName || s.team.name)}</h2><p>${esc(s.profile?.email ?? '')}</p><p>Mi rol: <strong>${esc(s.profile?.teamRole ?? 'Pendiente')}</strong></p><p>Equipo: ${esc(s.team.name)}</p><p>${s.team.memberCount}/${s.team.maxMembers} integrantes</p><p>${esc(s.title)}</p><p>Conserva este navegador para recuperar tu acceso. El progreso pertenece al equipo.</p><button class="secondary" id="logout">Cerrar acceso</button></section>${installCard()}`;
 }
@@ -208,6 +212,25 @@ const EVENT_LABELS = { 'session.started':s=>'Sesión iniciada · Fase 1', 'phase
 function recordStudioEvent(type, s) {
   if (!['presenter','projector'].includes(view) || !EVENT_LABELS[type]) return;
   studioEvents = [{ time: new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit',hour12:false}), text: EVENT_LABELS[type](s) }, ...studioEvents].slice(0,8);
+}
+function questionList(questions = [], staff = false) {
+  return questions.length ? `<ul class="live-questions">${questions.map(q=>`<li><p><strong>${staff ? esc(q.fullName || q.teamName || 'Participante')+' · ' : ''}Fase ${q.phase ?? '—'}</strong> · ${new Date(q.createdAt).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}</p><p class="question-content">${esc(q.content)}</p>${q.answered?'<small>Atendida</small>':staff?`<button class="secondary" data-answer-question="${q.id}">Marcar atendida</button>`:'<small>Enviada al conferencista</small>'}</li>`).join('')}</ul>` : '<p class="muted">Todavía no hay preguntas.</p>';
+}
+function enableQuestionAudio() {
+  if (view !== 'presenter') return;
+  try { questionAudio ??= new (window.AudioContext || window.webkitAudioContext)(); questionAudio.resume().catch(()=>{}); } catch {}
+}
+document.addEventListener('pointerdown',enableQuestionAudio);
+document.addEventListener('keydown',enableQuestionAudio);
+function notifyQuestion(next) {
+  if (view !== 'presenter' || !current || current.id !== next.id) return;
+  const previous = Math.max(0,...(current.questions ?? []).map(q=>q.id));
+  if (!(next.questions ?? []).some(q=>q.id>previous)) return;
+  try {
+    if (questionAudio?.state !== 'running') return;
+    const start=questionAudio.currentTime;
+    [660,880].forEach((frequency,i)=>{const osc=questionAudio.createOscillator(),gain=questionAudio.createGain();osc.frequency.value=frequency;gain.gain.setValueAtTime(0,start+i*.18);gain.gain.linearRampToValueAtTime(.15,start+i*.18+.015);gain.gain.exponentialRampToValueAtTime(.001,start+i*.18+.28);osc.connect(gain);gain.connect(questionAudio.destination);osc.start(start+i*.18);osc.stop(start+i*.18+.3);});
+  } catch {}
 }
 function studioCommands(s) {
   const ready = online && !busy, live = ['ACTIVE','PAUSED'].includes(s.status), iteration = s.iteration ?? 1, last = s.activePhase === PHASES.length;
@@ -324,7 +347,11 @@ function studioIncidents(s) {
 function studioMaintenance(s) {
   const phrase = `REINICIAR ${s.id.toUpperCase()}`;
   const live = s.status === 'ACTIVE';
-  return `<section class="studio-panel maintenance-panel"><p class="panel-label">Reiniciar ${esc(s.title)}</p>
+  return `<section class="studio-panel"><p class="panel-label">Resumen y analítica</p>
+    <h2>Exportar datos de la sesión</h2>
+    <p>Descarga un archivo CSV con el avance de todos los equipos, proyectos seleccionados, incidentes resueltos y decisiones de liberación.</p>
+    <a href="/api/sessions/${esc(s.id)}/export" class="button secondary" style="display:inline-flex;align-items:center;gap:8px;text-decoration:none;" download="resumen-${esc(s.id)}.csv">${icon('chart')}<span>Descargar resumen en CSV</span></a></section>
+  <section class="studio-panel maintenance-panel"><p class="panel-label">Reiniciar ${esc(s.title)}</p>
     <h2>Dejar la sesión lista para empezar de nuevo</h2>
     <p>Úsalo después de un ensayo para que el día del evento la sesión arranque limpia. Antes de borrar se guarda una copia de seguridad de la base de datos en el servidor.</p>
     <div class="maintenance-columns"><div><h3>Se borra</h3><ul><li>Equipos y participantes (sus accesos se cierran)</li><li>Entregas, prototipos y notas personales</li><li>Incidentes, revisiones y eventos</li><li>Estado del taller: vuelve a «En espera»</li></ul></div>
@@ -349,8 +376,11 @@ function studioScreen(s) {
   </aside>
   <div class="studio-scrim" id="studio-scrim" aria-hidden="true"></div>
   <div class="studio-content">
+    ${(s.questions ?? []).some(q=>!q.answered)?`<div class="question-alert" role="status">${icon('chat')}<strong>${s.questions.filter(q=>!q.answered).length} pregunta(s) pendiente(s)</strong><a href="#studio-questions">Ver preguntas</a></div>`:''}
+
     <div class="studio-topbar"><button class="studio-menu-button" id="studio-menu" aria-label="Abrir menú" aria-controls="studio-sidebar" aria-expanded="${studioMenuOpen}">${icon('menu')}</button><div class="studio-heading"><p class="muted">Control Center · ${esc(s.title)}</p><h1>${section[1]}</h1></div><div class="session-bar"><span class="studio-status status-${s.status.toLowerCase()}">${STATUS_LABELS[s.status] ?? esc(s.status)}${s.status==='ACTIVE'||s.status==='PAUSED'?` · Fase ${s.activePhase}/${PHASES.length} · ${STAGE_LABELS[s.phaseStage]}${(s.iteration??1)>1&&[LOOP_TO,LOOP_FROM].includes(s.activePhase)?` · It. ${s.iteration}`:''}`:''}</span>${['ACTIVE','PAUSED'].includes(s.status)&&s.phaseStage==='PRACTICE'?'<span class="session-timer" data-timer aria-label="Tiempo restante"></span>':''}${studioCommands(s)}</div></div>
     ${body}
+    <section id="studio-questions" class="studio-panel"><h2>Preguntas en vivo</h2><button id="question-sound" class="secondary">${questionAudio?.state==='running'?'Sonido activado':'Activar sonido de preguntas'}</button>${questionList(s.questions,true)}</section>
   </div>
 </div>`;
 }
@@ -369,30 +399,51 @@ function tick() {
 }
 setInterval(tick, 1000);
 async function mutate(route, payload) {
-  busy = true; notice.textContent = '';
+  busy = true; showNotice('');
+  if (route === 'actions/generate') generationMessage = 'Generando prototipo simulado…';
   // Reintentos de la misma acción conservan su clave incluso ante pérdida de respuesta.
-  const signature = JSON.stringify({ route, version: current.version, payload });
-  if (pending?.signature !== signature) pending = { signature, idempotencyKey: crypto.randomUUID() };
   try {
+    const signature = JSON.stringify({ route, version: current.version, payload });
+    if (pending?.signature !== signature) pending = { signature, idempotencyKey: requestId() };
+    render(current);
     const next = await api(`/sessions/${sessionId}/${route}`, { ...payload, expectedVersion: current.version, idempotencyKey: pending.idempotencyKey });
-    pending = null; busy = false; render(next); notice.textContent = 'Guardado en el servidor.';
+    pending = null; busy = false; if (route === 'actions/generate') generationMessage = 'Prototipo simulado generado.'; render(next); showNotice(route === 'actions/generate' ? 'Prototipo simulado generado. Revisa la versión debajo del prompt.' : 'Guardado en el servidor.');
   } catch (error) {
-    busy = false; notice.textContent = error.message;
+    busy = false; showNotice(error.message, 'error');
+    if (route === 'actions/generate') generationMessage = error.message;
     if (error.code === 'VERSION_CONFLICT' || error.code === 'PHASE_LOCKED') { pending = null; await refresh(); }
-  } finally { busy = false; }
+  } finally { busy = false; render(current); if(route === 'actions/generate') document.querySelector(generationMessage === 'Prototipo simulado generado.' ? '#prototype-result' : '#generation-feedback')?.scrollIntoView({behavior:'smooth',block:'start'}); }
 }
 function bind() {
+  const previewHost=document.querySelector('[data-prototype-preview]');
+  if(previewHost && current?.team){
+    const versions=current.team.project?.versions??[];
+    const latest=versions.filter(v=>v.phase===LOOP_TO&&(v.iteration??1)===(current.iteration??1)).at(-1);
+    if(latest)mountPrototypePreview(previewHost,latest,`${current.id}:${current.team.id}:${current.iteration??1}:${latest.createdAt}:${versions.length}`);
+  }
+  document.querySelector('#question-sound')?.addEventListener('click',()=>{enableQuestionAudio();document.querySelector('#question-sound').textContent='Sonido activado';});
+  document.querySelectorAll('[data-answer-question]').forEach(button=>button.addEventListener('click',async()=>{try{render(await api(`/sessions/${current.id}/questions`,{id:Number(button.dataset.answerQuestion)}));}catch(error){showNotice(error.message, 'error');}}));
+  const questionForm=document.querySelector('#question-form');
+  questionForm?.elements.question.addEventListener('input',e=>{questionDraft=e.target.value;});
+  questionForm?.addEventListener('submit',async e=>{
+    e.preventDefault(); if(sendingQuestion || !online) return;
+    sendingQuestion=true; render(current);
+    try {const next=await api(`/sessions/${current.id}/questions`,{content:questionDraft});questionDraft='';showNotice('Pregunta enviada al conferencista.');render(next);}
+    catch(error){showNotice(error.message, 'error');}
+    finally{sendingQuestion=false;render(current);}
+  });
+
   async function changeReview(payload){
-    if(reviewBusy||!online)return;reviewBusy=true;notice.textContent='';
+    if(reviewBusy||!online)return;reviewBusy=true;showNotice('');
     try{const next=await api(`/sessions/${sessionId}/team-review`,{...payload,expectedVersion:current.teamReview?.version??0});render(next);}
-    catch(error){notice.textContent=error.message;if(error.code==='REVIEW_VERSION_CONFLICT')await refresh();}
+    catch(error){showNotice(error.message, 'error');if(error.code==='REVIEW_VERSION_CONFLICT')await refresh();}
     finally{reviewBusy=false;render(current);}
   }
   async function teamAdmin(payload, question) {
     if (adminBusy || !online || !confirm(question)) return;
-    adminBusy = true; notice.textContent = '';
-    try { const next = await api(`/sessions/${sessionId}/team-admin`, payload); render(next); notice.textContent = payload.action === 'REMOVE_TEAM' ? 'Equipo eliminado.' : 'Integrante eliminado.'; }
-    catch (error) { notice.textContent = error.message; await refresh(); }
+    adminBusy = true; showNotice('');
+    try { const next = await api(`/sessions/${sessionId}/team-admin`, payload); render(next); showNotice(payload.action === 'REMOVE_TEAM' ? 'Equipo eliminado.' : 'Integrante eliminado.'); }
+    catch (error) { showNotice(error.message, 'error'); await refresh(); }
     finally { adminBusy = false; render(current); }
   }
   document.querySelectorAll('[data-remove-team]').forEach(button => button.addEventListener('click', () => teamAdmin({ action: 'REMOVE_TEAM', teamId: button.dataset.removeTeam },
@@ -422,8 +473,8 @@ function bind() {
       current.phaseNotes??={};current.phaseNotes[phase]=note;
       if(speakerDrafts[phase]?.content===savedDraft.content)delete speakerDrafts[phase];
       else if(speakerDrafts[phase])speakerDrafts[phase].version=note.version;
-      notice.textContent='Notas de la fase guardadas.';
-    }catch(error){notice.textContent=error.message;}finally{savingSpeakerNotes=false;render(current);}
+      showNotice('Notas de la fase guardadas.');
+    }catch(error){showNotice(error.message, 'error');}finally{savingSpeakerNotes=false;render(current);}
   });
 
   const notesForm = document.querySelector('#notes-form');
@@ -433,13 +484,13 @@ function bind() {
   notesForm?.addEventListener('submit',async event=>{
     event.preventDefault(); if(savingNotes || !online) return;
     const content = notesInput.value;
-    savingNotes = true; event.submitter.disabled = true; notice.textContent = '';
+    savingNotes = true; event.submitter.disabled = true; showNotice('');
     try {
       const result = await api('/notes',{content,expectedVersion:current.note?.version ?? 0});
       current.note = result.note;
       if(notesDraft === content) notesDraft = undefined;
-      notice.textContent = 'Notas guardadas.';
-    } catch(error) { notice.textContent = error.message; }
+      showNotice('Notas guardadas.');
+    } catch(error) { showNotice(error.message, 'error'); }
     finally { savingNotes = false; if(participantTab === 'notes') render(current); }
   });
   document.querySelectorAll('[data-studio-tab]').forEach(button=>button.addEventListener('click',()=>{
@@ -455,13 +506,24 @@ function bind() {
   document.querySelector('#studio-menu')?.addEventListener('click',()=>{ setStudioMenu(true); document.querySelector('[data-studio-tab][aria-current]')?.focus(); });
   document.querySelector('#studio-scrim')?.addEventListener('click',()=>setStudioMenu(false));
   document.querySelectorAll('[data-go]').forEach(button=>button.addEventListener('click',()=>navigateParticipant(button.dataset.go)));
-  document.querySelector('#pwa-install')?.addEventListener('click', async () => { if (await install()) notice.textContent = 'IngenIA quedó instalada en tu dispositivo.'; render(current); });
+  document.querySelector('#pwa-install')?.addEventListener('click', async () => { if (await install()) showNotice('IngenIA quedó instalada en tu dispositivo.'); render(current); });
   document.querySelector('#logout')?.addEventListener('click', async () => { await api('/auth/logout', {}); stream?.close(); online = false; draft = {}; login(); });
   document.querySelector('#activity')?.addEventListener('input', e => { draft[e.target.name] = e.target.type === 'checkbox' ? e.target.checked : e.target.value; });
   document.querySelector('#activity')?.addEventListener('submit', async e => {
     e.preventDefault(); if (busy || !online) return;
     await mutate('actions/' + e.target.dataset.action, readActivityForm(e.target, e.submitter));
   });
+  document.querySelectorAll('[data-prerequisite]').forEach(form=>form.addEventListener('submit',async e=>{
+    e.preventDefault();if(busy||!online)return;
+    const button=e.submitter,feedback=form.querySelector('[data-recovery-feedback]');
+    busy=true;button.disabled=true;feedback.textContent='Enviando…';
+    try {
+      const next=await api(`/sessions/${sessionId}/prerequisite`,{...readActivityForm(form),action:form.dataset.prerequisite,expectedVersion:current.version});
+      generationMessage='Entrega previa enviada. Ya puedes generar el prototipo.';busy=false;render(next);
+      document.querySelector('#generate')?.scrollIntoView({behavior:'smooth',block:'start'});
+    } catch(error){feedback.textContent=error.message;}
+    finally{busy=false;button.disabled=false;}
+  }));
   document.querySelector('#generate')?.addEventListener('input', e => { draft.prompt = e.target.value; });
   document.querySelector('#generate')?.addEventListener('submit', async e => {
     e.preventDefault(); if (busy || !online) return;
@@ -469,9 +531,9 @@ function bind() {
   });
   async function incidentCommand(payload, question) {
     if (adminBusy || !online || (question && !confirm(question))) return;
-    adminBusy = true; notice.textContent = '';
-    try { render(await api(`/sessions/${sessionId}/incidents`, payload)); notice.textContent = 'Incidente actualizado.'; }
-    catch (error) { notice.textContent = error.message; await refresh(); }
+    adminBusy = true; showNotice('');
+    try { render(await api(`/sessions/${sessionId}/incidents`, payload)); showNotice('Incidente actualizado.'); }
+    catch (error) { showNotice(error.message, 'error'); await refresh(); }
     finally { adminBusy = false; render(current); }
   }
   document.querySelectorAll('[data-incident-action]').forEach(button => button.addEventListener('click', () => {
@@ -484,12 +546,12 @@ function bind() {
     e.preventDefault(); if (adminBusy || !online) return;
     const form = e.target, confirmation = form.elements.confirmation.value.trim();
     if (!confirm(`Se borrarán todos los equipos, participantes y entregas de ${current.title}. Se guardará una copia de seguridad antes. ¿Continuar?`)) return;
-    adminBusy = true; notice.textContent = '';
+    adminBusy = true; showNotice('');
     try {
       const result = await api(`/sessions/${sessionId}/reset`, { confirmation, keepSpeakerNotes: form.elements.keepSpeakerNotes.checked });
       studioEvents = []; speakerDrafts = {}; render(result);
-      notice.textContent = `Sesión reiniciada: ${result.reset.participants} participantes retirados.${result.reset.backup ? ' Copia de seguridad guardada en el servidor.' : ''}`;
-    } catch (error) { notice.textContent = error.message; }
+      showNotice(`Sesión reiniciada: ${result.reset.participants} participantes retirados.${result.reset.backup ? ' Copia de seguridad guardada en el servidor.' : ''}`);
+    } catch (error) { showNotice(error.message, 'error'); }
     finally { adminBusy = false; render(current); }
   });
   document.querySelector('#incident-assign')?.addEventListener('submit', e => { e.preventDefault(); const data = Object.fromEntries(new FormData(e.target)); incidentCommand({ action: 'ASSIGN', ...data }); });
@@ -497,9 +559,9 @@ function bind() {
     form.addEventListener('input', e => { draft[`incident-${form.dataset.incident}-${e.target.name}`] = e.target.value; });
     form.addEventListener('submit', async e => {
       e.preventDefault(); if (busy || !online) return;
-      busy = true; notice.textContent = '';
-      try { render(await api(`/sessions/${sessionId}/incident-response`, { code: form.dataset.incident, choice: form.elements.choice.value, justification: form.elements.justification.value })); notice.textContent = 'Respuesta del equipo registrada.'; }
-      catch (error) { notice.textContent = error.message; }
+      busy = true; showNotice('');
+      try { render(await api(`/sessions/${sessionId}/incident-response`, { code: form.dataset.incident, choice: form.elements.choice.value, justification: form.elements.justification.value })); showNotice('Respuesta del equipo registrada.'); }
+      catch (error) { showNotice(error.message, 'error'); }
       finally { busy = false; render(current); }
     });
   });
@@ -508,9 +570,9 @@ function bind() {
     const decision = button.dataset.deliverableReview;
     const comment = decision === 'REQUEST_CHANGES' ? prompt('Comentario para el equipo (opcional):') : '';
     if (comment === null) return;
-    adminBusy = true; notice.textContent = '';
-    try { render(await api(`/sessions/${sessionId}/deliverable-review`, { teamId: button.dataset.team, phase: current.activePhase, decision, comment: comment.slice(0, 500) })); notice.textContent = decision === 'ACCEPT' ? 'Entrega aceptada.' : 'Se pidió revisar la entrega.'; }
-    catch (error) { notice.textContent = error.message; }
+    adminBusy = true; showNotice('');
+    try { render(await api(`/sessions/${sessionId}/deliverable-review`, { teamId: button.dataset.team, phase: current.activePhase, decision, comment: comment.slice(0, 500) })); showNotice(decision === 'ACCEPT' ? 'Entrega aceptada.' : 'Se pidió revisar la entrega.'); }
+    catch (error) { showNotice(error.message, 'error'); }
     finally { adminBusy = false; render(current); }
   }));
   document.querySelectorAll('[data-command]').forEach(button => button.addEventListener('click', async () => {
@@ -518,23 +580,27 @@ function bind() {
     const action = button.dataset.command; const payload = { action, ...(action === 'EXTEND' ? { seconds: 300 } : {}) };
     if (action === 'REOPEN') { payload.phase = Number(prompt(`Fase que deseas reabrir (1–${PHASES.length}):`)); if (!Number.isInteger(payload.phase) || payload.phase<1 || payload.phase>PHASES.length) return; }
     if (['ADVANCE','REOPEN','ITERATE','FINISH'].includes(action)) {
-      if (!confirm(`${action === 'ADVANCE' ? `Iniciar la teoría de la fase ${current.activePhase+1}: ${PHASES[current.activePhase].title}.` : action === 'REOPEN' ? `Reabrir la teoría de la fase ${payload.phase}.` : action === 'ITERATE' ? `Iteración ${(current.iteration ?? 1)+1}/${MAX_ITERATIONS}: los equipos vuelven a Construcción con IA para ajustar el prompt; construcción y verificación se repiten y lo anterior queda archivado.` : 'Finalizar la sesión.'} ${current.summary.completed}/${current.summary.total} equipos listos. Las acciones de otras fases quedarán bloqueadas. ¿Confirmar?`)) return;
+      const completed = current.summary?.completed ?? 0;
+      const total = current.summary?.total ?? 0;
+      const pending = Math.max(0, total - completed);
+      const summaryText = `Resumen: ${completed} de ${total} equipos completaron${pending > 0 ? ` (${pending} rezagados/pendientes)` : ''}.`;
+      if (!confirm(`${action === 'ADVANCE' ? `Iniciar la teoría de la fase ${current.activePhase+1}: ${PHASES[current.activePhase].title}.` : action === 'REOPEN' ? `Reabrir la teoría de la fase ${payload.phase}.` : action === 'ITERATE' ? `Iteración ${(current.iteration ?? 1)+1}/${MAX_ITERATIONS}: los equipos vuelven a Construcción con IA para ajustar el prompt; construcción y verificación se repiten y lo anterior queda archivado.` : 'Finalizar la sesión.'}\n\n${summaryText}\nLas acciones de otras fases quedarán bloqueadas. ¿Confirmar?`)) return;
       payload.confirm = true;
     }
     await mutate('phase-command', payload);
   }));
   document.querySelector('#projector')?.addEventListener('click', async () => {
     const tab = window.open('about:blank', '_blank');
-    if (!tab) { notice.textContent = 'Permite ventanas emergentes para abrir la proyección desde Studio.'; return; }
+    if (!tab) { showNotice('Permite ventanas emergentes para abrir la proyección desde Studio.', 'warning'); return; }
     tab.opener = null;
     try {
       const { token } = await api(`/sessions/${sessionId}/projector-access`, {});
-      tab.location.replace(`${location.origin}/projector#${token}`);
-    } catch (error) { tab.close(); notice.textContent = error.message; }
+      tab.location.replace(`${location.origin}/projector?session=${sessionId}#${token}`);
+    } catch (error) { tab.close(); showNotice(error.message, 'error'); }
   });
   document.querySelector('#report')?.addEventListener('click', async () => {
     try { const report = await api(`/sessions/${sessionId}/report`); const url = URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'})); const a = document.createElement('a'); a.href=url; a.download='ingenia-reporte-demo.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); }
-    catch(error) { notice.textContent=error.message; }
+    catch(error) { showNotice(error.message, 'error'); }
   });
 }
 async function refresh() { const s = await api(`/sessions/${sessionId}/state`); render(s); }
@@ -548,17 +614,40 @@ async function connect() {
     online = false; setConnection('Reconectando… Acciones bloqueadas'); if(current) render(current);
     try { const me = await api('/me'); if(activeStream === stream && me.sessionId !== sessionId) { activeStream.close(); login(); } }
     catch(error) {
-      if(error.code === 'UNAUTHENTICATED' && activeStream === stream) { activeStream.close(); login(); notice.textContent = 'Tu acceso anterior terminó. Ingresa de nuevo para continuar.'; }
+      if(error.code === 'UNAUTHENTICATED' && activeStream === stream) {
+        if (view === 'projector') {
+          try {
+            await api('/auth/projector', { sessionId });
+            const me = await api('/me');
+            if (me.role === 'PROJECTOR' && me.sessionId === sessionId) { await connect(); return; }
+          } catch {}
+        }
+        activeStream.close(); login(); if(view !== 'projector') showNotice('Tu acceso anterior terminó. Ingresa de nuevo para continuar.', 'warning');
+      }
     }
   };
-  for (const type of ['state','session.started','phase.closed','phase.opened','session.paused','session.resumed','session.finished','timer.updated','team.progress','phase.practice','presenter.notes.updated','team.review.updated','presence.updated','phase.reflection','phase.completed','incident.updated']) stream.addEventListener(type, e => { online = true; setConnection('En vivo · Servidor conectado'); const next = JSON.parse(e.data); recordStudioEvent(type, next); render(next); });
+  for (const type of ['state','session.started','phase.closed','phase.opened','session.paused','session.resumed','session.finished','timer.updated','team.progress','phase.practice','presenter.notes.updated','team.review.updated','presence.updated','phase.reflection','phase.completed','incident.updated','question.updated']) stream.addEventListener(type, e => { online = true; setConnection('En vivo · Servidor conectado'); const next = JSON.parse(e.data); notifyQuestion(next); recordStudioEvent(type, next); render(next); });
 }
 async function boot() {
   try {
-    if (view === 'projector' && location.hash) { const token = location.hash.slice(1); history.replaceState(null,'',location.pathname); await api('/auth/projector',{token}); }
+    if (view === 'projector') {
+      if (location.hash) {
+        const token = location.hash.slice(1);
+        history.replaceState(null, '', location.pathname + location.search);
+        await api('/auth/projector', { token });
+      } else {
+        let me = null;
+        try { me = await api('/me'); } catch {}
+        if (!me || me.role !== 'PROJECTOR') {
+          const params = new URLSearchParams(location.search);
+          const targetSession = params.get('session') || 'tarde';
+          await api('/auth/projector', { sessionId: targetSession });
+        }
+      }
+    }
     const me = await api('/me');
     const expected = { participant:'PARTICIPANT', presenter:'PRESENTER', projector:'PROJECTOR' }[view];
-    if (me.role !== expected) { login(); if (view !== 'participant') notice.textContent = 'Usa otro perfil o cierra el acceso actual para cambiar de rol.'; return; }
+    if (me.role !== expected) { login(); if (view !== 'participant') showNotice('Usa otro perfil o cierra el acceso actual para cambiar de rol.', 'warning'); return; }
     if(view === 'participant') {
       const state = await api(`/sessions/${me.sessionId}/state`);
       if(!state.profile?.email) {
@@ -570,7 +659,7 @@ async function boot() {
       }
     }
     sessionId = me.sessionId; await connect();
-  } catch(error) { login(); if(error.code && error.code !== 'UNAUTHENTICATED') notice.textContent = error.message; }
+  } catch(error) { login(); if(error.code && error.code !== 'UNAUTHENTICATED' && view !== 'projector') showNotice(error.message, 'error'); }
 }
 window.addEventListener('online', () => { if(sessionId) refresh().catch(()=>{}); });
 boot();

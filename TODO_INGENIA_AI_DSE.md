@@ -23,7 +23,7 @@
   6. Entrega y aprendizaje (`delivery`)
 - [x] **P0-03. Reemplazar las cinco etiquetas anteriores** en UI, API, estadísticas, barra de progreso, exportaciones, fixtures, mensajes, puntajes y validación de avance. Migración explícita de entregables antiguos (`Ideación`, `Generar app`, `Auditar`, `Corregir`, `Publicar`), sin asignar automáticamente una equivalencia dudosa; registrar si hace falta reconciliación manual.
 - [x] **P0-04. Modelar subestado didáctico** por fase: `theory`, `practice`, `reflection`, `closed`; Studio es la fuente de autoridad. En teoría se muestra contenido y la actividad permanece bloqueada; en práctica se habilita; en reflexión se comparten hallazgos; en cerrado solo lectura.
-- [ ] **P0-05. Sincronización en tiempo real**: evento con `sessionId`, `phaseId`, `mode`, `version`, `startedAt`, `endsAt` y `actorId`; reconexión recupera snapshot; mensajes idempotentes y ordenados; evitar que dos pestañas del Studio dupliquen cambios.
+- [x] **P0-05. Sincronización en tiempo real**: evento con `sessionId`, `phaseId`, `mode`, `version`, `startedAt`, `endsAt` y `actorId`; reconexión recupera snapshot; mensajes idempotentes y ordenados; evitar que dos pestañas del Studio dupliquen cambios. — *Hecho: SSE con snapshot de estado, versión optimista, idempotencia y campo actorId agregado.*
 - [x] **P0-06. Cronómetro** calculado desde tiempo del servidor, no desde relojes independientes de clientes. Mostrar pausa/reanudación coherente y estado de tiempo agotado.
 
 ## P0 · Misiones oficiales revisadas
@@ -80,7 +80,7 @@ Cada fase debe mostrar en participantes: nombre, objetivo, instrucciones de 2–
 - [ ] **P1-01. Studio**: panel de 6 fases × 3 subestados; tiempos editables por sesión (preferencia inicial de 120 min); botón siguiente/anterior con confirmación si hay entregables pendientes; vista de progreso global.
 - [ ] **P1-02. Cola de intervenciones**: filtros por fase, severidad y estado; «Pedir la palabra» desde equipo, prioridad manual docente, límite sugerido 45–60 segundos, controles de omitir/posponer/finalizar.
 - [ ] **P1-03. Calificación formativa** por evidencia y razonamiento, no por velocidad; equipo puede finalizar sin incidente; un incidente no reduce automáticamente puntuación.
-- [ ] **P1-04. Resumen final**: número de equipos, fases terminadas, categorías de incidentes compartidos, aprendizajes y decisiones de liberación. Exportación CSV anonimizada por defecto.
+- [x] **P1-04. Resumen final**: número de equipos, fases terminadas, categorías de incidentes compartidos, aprendizajes y decisiones de liberación. Exportación CSV anonimizada por defecto. — *Hecho: Endpoint /api/sessions/:id/export y botón en Studio (Mantenimiento) para descarga de CSV estructurado con avance, incidentes y decisiones.*
 - [ ] **P1-05. Introducción histórica** en proyector o presentación: programación temprana → procesos secuenciales → SDLC → Agile/DevOps → IA asistida → integración educativa AI-DSE. Distinguir explícitamente SDLC como marco general y AI-DSE como adaptación de taller.
 
 ## P1 · Calidad, accesibilidad y seguridad

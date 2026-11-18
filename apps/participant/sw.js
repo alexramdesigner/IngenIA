@@ -1,13 +1,13 @@
 // Service worker de IngenIA. El estado del taller (API y transmisión en vivo) nunca se guarda en caché:
 // siempre viene del servidor. Solo se precargan los archivos de la interfaz para abrir rápido y
 // mostrar una página sin conexión si se cae la red del auditorio.
-const VERSION = 'ingenia-v1';
+const VERSION = 'ingenia-v20';
 const SHELL = [
   '/', '/offline.html', '/manifest.webmanifest',
   '/packages/ui/style.css', '/packages/ui/participant.css', '/packages/ui/ambient.css',
-  '/packages/ui/app.mjs', '/packages/ui/icons.mjs', '/packages/ui/participant-nav.mjs', '/packages/ui/workshop.mjs', '/packages/ui/qr.mjs',
-  '/packages/shared/phases.mjs', '/packages/shared/projects.mjs', '/packages/shared/deliverable-text.mjs',
-  '/packages/ui/assets/IMAGOTIPO_HORIZONTAL_BLANCO.png', '/packages/ui/assets/fondo-verde-tecnologico.png', '/packages/ui/assets/icons/icon-192.png'
+  '/packages/ui/prototype-preview.mjs', '/packages/ui/notifications.mjs', '/packages/ui/app.mjs', '/packages/ui/icons.mjs', '/packages/ui/participant-nav.mjs', '/packages/ui/workshop.mjs', '/packages/ui/qr.mjs',
+  '/packages/shared/request-id.mjs', '/packages/shared/phases.mjs', '/packages/shared/projects.mjs', '/packages/shared/deliverable-text.mjs',
+  '/packages/ui/assets/HORIZONTAL%20BLANCO.webp', '/packages/ui/assets/fondo-tecnologico-azul-petroleo.png', '/packages/ui/assets/icons/icon-192.png'
 ];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(VERSION).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));

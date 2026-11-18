@@ -1,11 +1,50 @@
-:root{color-scheme:dark;--bg:#071c19;--panel:#10332b;--line:#31564a;--text:#f5fff6;--muted:#bbcec2;--lime:#d1fa75;--warn:#ffd17d;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text)}*{box-sizing:border-box}body{margin:0}header{padding:24px max(5vw,20px);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:16px}header strong{font-size:1.6rem}header span{color:var(--lime)}main{max-width:1100px;margin:auto;padding:28px 20px 80px}h1{font-size:clamp(2rem,5vw,3.5rem);line-height:1.1;margin:16px 0}h2{font-size:1.3rem}p{line-height:1.6}a{color:var(--lime)}.muted,small{color:var(--muted)}.card{padding:24px;border:1px solid var(--line);border-radius:18px;background:var(--panel);margin:20px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}.phase{padding:16px;border:1px solid var(--line);border-radius:12px;color:var(--muted)}.phase.active{border-color:var(--lime);color:var(--lime)}.badge{font-size:.8rem;padding:6px 10px;border-radius:20px;background:#28422a;color:var(--lime)}button{background:var(--lime);border:0;border-radius:9px;color:#102312;padding:12px 18px;font:inherit;font-weight:650;cursor:pointer;margin:6px 6px 6px 0}button.secondary{background:#244b40;color:var(--text);border:1px solid var(--line)}button:disabled{opacity:.4;cursor:not-allowed}input,select,textarea{display:block;width:100%;margin:8px 0 18px;padding:12px;background:var(--bg);border:1px solid #6c8f7a;border-radius:8px;color:var(--text);font:inherit}input[type=checkbox]{display:inline;width:auto}textarea{min-height:145px;resize:vertical}label{display:block}pre{overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg);padding:18px;border-radius:12px}#notice{color:var(--warn);white-space:pre-wrap}#notice:not(:empty){padding:16px;border:1px solid var(--warn);border-radius:10px;margin-bottom:20px}#connection{font-size:.9rem}#timer{font-size:2.7rem;font-variant-numeric:tabular-nums;color:var(--lime)}.actions{display:flex;flex-wrap:wrap;gap:4px}footer{border-top:1px solid var(--line);padding:22px 5vw;color:var(--muted);font-size:.85rem}:focus-visible{outline:3px solid var(--warn);outline-offset:4px}body[data-view=projector] main{max-width:1500px}body[data-view=projector] h1{font-size:clamp(3rem,7vw,7rem)}body[data-view=projector] #timer{font-size:6rem}@media(max-width:500px){header{align-items:flex-start;flex-direction:column}.card{padding:18px}.phase{padding:12px}.grid{grid-template-columns:1fr 1fr}}
+:root{
+  color-scheme:dark;
+  /* Paleta de interfaz: azul petróleo y turquesa sobre el fondo tecnológico. */
+  --ucund-green-dark:#103747;
+  --ucund-green-primary:#176878;
+  --ucund-gold:#DAAA00;
+  --ucund-yellow:#FBE122;
+  --ucund-lime:#198490;
+  --ucund-green-soft:#70c5d3;
+  --ucund-turquoise:#00A99D;
+  --ucund-orange:#F7931E;
+  --ucund-gray:#4D4D4D;
 
-/* Activo institucional original: sin recortes, filtros ni deformación. */
-header{flex-wrap:wrap;background:#002b1b}
+  /* Mapeo de tokens del sistema */
+  --bg:#071c2a;
+  --bg-deep:#051520;
+  --panel:#0b2939;
+  --line:#176878;
+  --line-subtle:#244b60;
+  --text:#FFFFFF;
+  --muted:#d3e4ed;
+  --lime:#198490;
+  --warn:#DAAA00;
+  --danger:#F7931E;
+  --info:#45D9E8;
+  --accent-bright:#45D9E8;
+  --focus:#45D9E8;
+
+  /* Tipografía institucional (Manual ECOM 002 V19, Págs. 40 y 66) */
+  font-family:'Montserrat','Century Gothic',system-ui,-apple-system,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+}
+@font-face{font-family:'Montserrat';src:local('Montserrat'),local('Montserrat Regular');font-weight:400;font-style:normal}
+@font-face{font-family:'Montserrat';src:local('Montserrat SemiBold');font-weight:600;font-style:normal}
+@font-face{font-family:'Montserrat';src:local('Montserrat Bold');font-weight:700;font-style:normal}
+@font-face{font-family:'Montserrat';src:local('Montserrat ExtraBold');font-weight:800;font-style:normal}
+*{box-sizing:border-box}body{margin:0}header{padding:24px max(5vw,20px);border-bottom:1px solid var(--line-subtle);display:flex;justify-content:space-between;align-items:center;gap:16px}header strong{font-size:1.6rem}header span{color:var(--accent-bright)}main{max-width:1100px;margin:auto;padding:28px 20px 80px}h1{font-size:clamp(2rem,5vw,3.5rem);line-height:1.1;margin:16px 0;font-weight:800}h2{font-size:1.3rem;font-weight:700}p{line-height:1.6}a{color:var(--accent-bright)}.muted,small{color:var(--muted)}.card{padding:24px;border:1px solid var(--line-subtle);border-radius:18px;background:var(--panel);margin:20px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}.phase{padding:16px;border:1px solid var(--line-subtle);border-radius:12px;color:var(--muted)}.phase.active{border-color:var(--lime);color:var(--accent-bright)}.badge{font-size:.8rem;padding:6px 10px;border-radius:20px;background:#103747;color:var(--accent-bright);border:1px solid var(--line)}button{background:var(--lime);border:0;border-radius:9px;color:#ffffff;padding:12px 18px;font:inherit;font-weight:700;cursor:pointer;margin:6px 6px 6px 0}button:hover{background:#2099a6}button.secondary{background:var(--ucund-green-primary);color:#FFFFFF;border:1px solid #245366}button.secondary:hover{background:#198490}button:disabled{opacity:.4;cursor:not-allowed}input,select,textarea{display:block;width:100%;margin:8px 0 18px;padding:12px;background:var(--bg-deep);border:1px solid #2b596e;border-radius:8px;color:var(--text);font:inherit}input[type=checkbox]{display:inline;width:auto}textarea{min-height:145px;resize:vertical}label{display:block}pre{overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg-deep);padding:18px;border-radius:12px;border:1px solid var(--line-subtle)}#connection{font-size:.9rem}#timer{font-size:2.7rem;font-variant-numeric:tabular-nums;color:var(--accent-bright)}.actions{display:flex;flex-wrap:wrap;gap:4px}footer{border-top:1px solid var(--line-subtle);padding:22px 5vw;color:var(--muted);font-size:.6rem}:focus-visible{outline:3px solid var(--focus);outline-offset:4px}body[data-view=projector] main{max-width:1500px}body[data-view=projector] h1{font-size:clamp(3rem,7vw,7rem)}body[data-view=projector] #timer{font-size:6rem}@media(max-width:500px){header{align-items:flex-start;flex-direction:column}.card{padding:18px}.phase{padding:12px}.grid{grid-template-columns:1fr 1fr}}
+
+/* Activo institucional original: área de seguridad protegida (Pág. 18) y enlace oficial (Pág. 62) */
+header{flex-wrap:wrap;background:var(--ucund-green-dark)}
 .brand-lockup{display:flex;align-items:center;gap:24px;min-width:0}
-.institutional-logo{display:block;width:230px;max-width:100%;height:auto;object-fit:contain;margin:12px 0}
-.brand-lockup strong{padding-left:24px;border-left:1px solid var(--line)}
-body[data-view=projector] .institutional-logo{width:300px}
+.institutional-logo-link{display:inline-flex;align-items:center;text-decoration:none;border-radius:8px;padding:2px;transition:opacity .15s ease}
+.institutional-logo-link:hover,.institutional-logo-link:focus-visible{opacity:.92}
+.institutional-logo{display:block;width:230px;max-width:100%;height:auto;object-fit:contain;margin:8px 0}
+.brand-lockup strong{padding-left:24px;border-left:1px solid var(--line-subtle)}
+body[data-view=projector] .institutional-logo{width:340px}
 @media(max-width:640px){.brand-lockup{flex-wrap:wrap;gap:12px}.institutional-logo{width:210px}.brand-lockup strong{font-size:1.2rem;padding-left:12px}}
 @media(max-width:360px){.brand-lockup{flex-direction:column;align-items:flex-start}.brand-lockup strong{border-left:0;padding-left:0}}
 
@@ -14,7 +53,7 @@ body[data-view=projector]{width:100vw;height:100vh;overflow:hidden;background:#0
 #projection-stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;overflow:hidden;transform-origin:center;background:var(--bg);display:flex;flex-direction:column}
 #projection-stage header{flex:none;padding:24px 64px;min-height:152px;flex-wrap:nowrap}
 #projection-stage .brand-lockup{flex-wrap:nowrap;flex-direction:row}
-#projection-stage .institutional-logo{width:300px}
+#projection-stage .institutional-logo{width:340px}
 #projection-stage .brand-lockup strong{font-size:32px}
 #projection-stage #connection{font-size:22px}
 #projection-stage .badge{font-size:20px}
@@ -29,7 +68,7 @@ body[data-view=projector]{width:100vw;height:100vh;overflow:hidden;background:#0
 #projection-stage h2{font-size:30px;margin:8px 0}
 #projection-stage footer{font-size:19px;padding:14px 64px;flex:none}
 .projection-fullscreen{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(16px,env(safe-area-inset-bottom));z-index:2;display:grid;place-items:center;width:38px;height:38px;margin:0;padding:8px;background:transparent;color:#fff;border:1px solid #fff;border-radius:10px;opacity:.45;transition:opacity .15s,background-color .15s}
-.projection-fullscreen:hover,.projection-fullscreen:focus-visible{opacity:1;background:#001c14}
+.projection-fullscreen:hover,.projection-fullscreen:focus-visible{opacity:1;background:#071c2a}
 .projection-fullscreen .fullscreen-collapse{display:none}
 .projection-fullscreen[aria-pressed=true] .fullscreen-expand{display:none}
 .projection-fullscreen[aria-pressed=true] .fullscreen-collapse{display:block}
@@ -40,64 +79,104 @@ body[data-view=projector]{width:100vw;height:100vh;overflow:hidden;background:#0
 /* Phosphor Icons (MIT): selección SVG local, sin fuentes ni CDN. */
 .ui-icon{display:inline-block;vertical-align:middle;flex-shrink:0;fill:currentColor;stroke:none}
 
-/* Fondo institucional: desenfoque aislado del contenido y contraste reforzado. */
-:root{--platform-background:linear-gradient(90deg,rgba(0,24,17,.78),rgba(0,24,17,.68)),url('/packages/ui/assets/fondo-verde-tecnologico.png');--platform-background-blur:6px}
-body[data-view=presenter],body[data-view=participant]{min-height:100svh;background:var(--bg);isolation:isolate}
+/* Fondo azul petróleo compartido por las tres vistas, sin tinte verde. */
+:root{--platform-background:linear-gradient(90deg,rgba(3,18,28,.82),rgba(6,28,42,.72)),url('/packages/ui/assets/fondo-tecnologico-azul-petroleo.png');--platform-background-blur:0px}
+body[data-view=presenter],body[data-view=participant]{min-height:100svh;background:#020d14;isolation:isolate}
 body[data-view=presenter]::before,body[data-view=participant]::before,#projection-stage::before{content:"";position:fixed;inset:-18px;z-index:-1;pointer-events:none;background-image:var(--platform-background);background-size:cover;background-position:center;background-repeat:no-repeat;filter:blur(var(--platform-background-blur))}
 body[data-view=presenter] header,#projection-stage header{background:transparent}
-#projection-stage{background:var(--bg);isolation:isolate}
+#projection-stage{background:#020d14;isolation:isolate}
 #projection-stage::before{position:absolute}
 
 /* Identidad del taller compartida por Studio y auditorio. */
 body[data-view=presenter] .brand-lockup,#projection-stage .brand-lockup{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);align-items:center;gap:clamp(16px,3vw,40px);width:100%;min-width:0}
 body[data-view=presenter] .institutional-logo{width:100%;max-width:300px;height:auto}
-body[data-view=presenter] .workshop-title,#projection-stage .workshop-title{display:flex;justify-self:end;align-items:center;justify-content:flex-end;gap:clamp(10px,2vw,24px);min-width:0;text-align:right;color:#c9fa72;font-size:clamp(13px,2.4vw,30px);line-height:1.2;font-weight:750}
+body[data-view=presenter] .workshop-title,#projection-stage .workshop-title{display:flex;justify-self:end;align-items:center;justify-content:flex-end;gap:clamp(10px,2vw,24px);min-width:0;text-align:right;color:var(--accent-bright);font-size:clamp(13px,2.4vw,30px);line-height:1.2;font-weight:750}
 body[data-view=presenter] .workshop-title strong,#projection-stage .workshop-title strong{border:0;padding:0;color:inherit;font-size:inherit;font-weight:800}
-body[data-view=presenter] .workshop-icon,#projection-stage .workshop-icon{display:grid;place-items:center;flex-shrink:0;width:clamp(32px,5vw,64px);height:clamp(32px,5vw,64px);border-radius:18px;background:linear-gradient(145deg,#d8ff7d,#71c84f);color:#06482b;box-shadow:0 3px 0 #237a39}
+body[data-view=presenter] .workshop-icon,#projection-stage .workshop-icon{display:grid;place-items:center;flex-shrink:0;width:clamp(32px,5vw,64px);height:clamp(32px,5vw,64px);border-radius:18px;background:linear-gradient(135deg,var(--ucund-lime),var(--ucund-green-primary));color:var(--ucund-green-dark);box-shadow:0 3px 0 #071c2a}
 body[data-view=presenter] .workshop-icon svg,#projection-stage .workshop-icon svg{width:58%;height:58%}
 #projection-stage .workshop-title{font-size:38px;gap:24px}
 #projection-stage .workshop-icon{width:76px;height:76px;border-radius:22px}
 #projection-stage header{flex-wrap:wrap}
 
 .platform-footer{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 24px}
+.footer-legal{display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap}
+.footer-legal-link{color:var(--accent-bright);text-decoration:none;font-weight:700;font-size:12px;letter-spacing:.02em}
+.footer-legal-link:hover{text-decoration:underline}
+.footer-legal-badge{display:inline-block;padding:2px 8px;border-radius:999px;background:rgba(251,225,34,.15);border:1px solid var(--focus);color:var(--focus);font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
 .footer-details{flex:1;min-width:0}
-.platform-footer .footer-connection{margin-left:auto;text-align:right;color:var(--lime);font-size:13px;line-height:1.4}
+.platform-footer .footer-connection{margin-left:auto;text-align:right;color:var(--accent-bright);font-size:13px;line-height:1.4}
 #projection-stage footer .footer-connection{font-size:20px}
 
-body[data-view=presenter] .platform-wordmark,#projection-stage .platform-wordmark{justify-self:end;border:0;padding:0;font-size:clamp(22px,3.2vw,40px);line-height:1.15;color:#f5fff6;text-align:right}
+body[data-view=presenter] .platform-wordmark,#projection-stage .platform-wordmark{justify-self:end;border:0;padding:0;font-size:clamp(22px,3.2vw,40px);line-height:1.15;color:#ffffff;text-align:right}
 #projection-stage .platform-wordmark{font-size:52px}
 
 /* Marca junto al logo, título del taller conservado al extremo derecho. */
 body[data-view=presenter] .brand-lockup,#projection-stage .brand-lockup{grid-template-columns:minmax(0,1fr) auto minmax(0,1.25fr);gap:clamp(12px,2vw,32px)}
-body[data-view=presenter] .platform-wordmark,#projection-stage .platform-wordmark{justify-self:start;border-left:1px solid var(--line);padding-left:clamp(12px,2vw,24px);text-align:left}
-body[data-view=presenter] .platform-wordmark{font-size:clamp(18px,2.5vw,32px)}
+body[data-view=presenter] .platform-wordmark,#projection-stage .platform-wordmark{justify-self:start;border-left:1px solid var(--line-subtle);padding-left:clamp(12px,2vw,24px);text-align:left}
+body[data-view=presenter] .platform-wordmark{font-size:clamp(15px,1.6vw,19px)}
 #projection-stage .platform-wordmark{font-size:40px}
 @media(max-width:700px){body[data-view=presenter] .brand-lockup{grid-template-columns:minmax(0,1fr) auto}body[data-view=presenter] .brand-lockup>.workshop-title{grid-column:1/-1;justify-self:end}}
 
 /* Logo y marca próximos; el título del taller conserva el espacio derecho. */
 body[data-view=presenter] .brand-lockup,#projection-stage .brand-lockup{grid-template-columns:auto auto minmax(0,1fr);column-gap:12px}
-body[data-view=presenter] .brand-lockup>.institutional-logo{width:clamp(140px,22vw,300px)}
+body[data-view=presenter] .brand-lockup .institutional-logo{width:clamp(130px,14vw,175px)}
 body[data-view=presenter] .platform-wordmark,#projection-stage .platform-wordmark{padding-left:12px}
 @media(max-width:700px){body[data-view=presenter] .brand-lockup{grid-template-columns:auto minmax(0,1fr)}}
 
 /* Revisión de una entrega guardada, dirigida desde Studio. */
-.team-review-option{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+.team-review-option{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-top:1px solid var(--line-subtle);flex-wrap:wrap}
 .team-review-option p{margin:6px 0}
-.team-review-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45;background:#00251bd9;padding:24px;border-left:3px solid var(--lime)}
+.team-review-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45;background:rgba(7,28,42,.92);padding:24px;border-left:3px solid var(--lime)}
 #projection-stage .team-review-display h1{font-size:58px}
 #projection-stage .team-review-text{font-size:28px;line-height:1.4;margin-top:24px}
 
 /* La revisión se superpone al taller, que permanece tenuemente visible. */
-#projection-stage .projection-review-overlay{position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;padding:72px 110px;background:rgba(0,15,10,.66);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
-#projection-stage .projection-review-modal{width:100%;max-width:1660px;max-height:100%;overflow:auto;padding:36px 44px;border:1px solid #659f7380;border-radius:24px;background:rgba(8,43,31,.97);box-shadow:0 28px 100px #0009}
+#projection-stage .projection-review-overlay{position:absolute;inset:0;z-index:1;display:flex;align-items:center;justify-content:center;padding:72px 110px;background:rgba(5,19,29,.75);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+#projection-stage .projection-review-modal{width:100%;max-width:1660px;max-height:100%;overflow:auto;padding:36px 44px;border:1px solid #245366;border-radius:24px;background:rgba(7,28,42,.97);box-shadow:0 28px 100px #0009}
 #projection-stage .projection-review-modal .team-review-text{margin-top:20px}
 
 /* Indicador compacto de fases en el espacio derecho del auditorio. */
 #projection-stage .projection-overview{display:grid;grid-template-columns:minmax(0,1fr) 640px;gap:64px;align-items:start}
 #projection-stage .projection-phase-progress{list-style:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin:38px 0 0;padding:0}
 #projection-stage .projection-phase-progress li{position:relative;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;font-size:20px;line-height:1.25;color:var(--muted)}
-#projection-stage .projection-phase-progress li:not(:last-child)::after{content:"";position:absolute;top:21px;left:calc(50% + 22px);width:calc(100% - 44px);height:2px;background:#345e49}
-#projection-stage .projection-phase-number{display:grid;place-items:center;width:44px;height:44px;border:2px solid #345e49;border-radius:50%;background:#03271c;color:var(--text);font-size:22px;font-weight:700}
+#projection-stage .projection-phase-progress li:not(:last-child)::after{content:"";position:absolute;top:21px;left:calc(50% + 22px);width:calc(100% - 44px);height:2px;background:var(--line-subtle)}
+#projection-stage .projection-phase-number{display:grid;place-items:center;width:44px;height:44px;border:2px solid var(--line-subtle);border-radius:50%;background:#071c2a;color:var(--text);font-size:22px;font-weight:700}
 #projection-stage .projection-phase-progress .is-current{color:var(--text);font-weight:650}
-#projection-stage .is-current .projection-phase-number{background:var(--lime);border-color:var(--lime);color:#102312;box-shadow:0 0 0 6px #d1fa751a}
-#projection-stage .is-past .projection-phase-number{border-color:#7ea46a;color:var(--lime)}
+#projection-stage .is-current .projection-phase-number{background:var(--lime);border-color:var(--lime);color:#ffffff;box-shadow:0 0 0 6px #1984902b}
+#projection-stage .is-past .projection-phase-number{border-color:var(--ucund-green-primary);color:var(--accent-bright)}
+
+/* Turquesa luminoso para detalles interactivos sobre los paneles azul petróleo. */
+.phase.active{border-color:var(--accent-bright)}
+input:focus-visible,select:focus-visible,textarea:focus-visible{border-color:var(--accent-bright)}
+
+/* Cristal líquido: capas de luz sobre una base azul translúcida. */
+:root{
+  --glass-surface:linear-gradient(135deg,rgba(204,245,255,.13),rgba(109,211,235,.035) 38%,rgba(69,217,232,.065)),rgba(7,28,42,.58);
+  --glass-border:rgba(173,231,248,.28);
+  --glass-shadow:inset 0 1px 0 rgba(235,253,255,.32),inset 1px 0 0 rgba(187,235,255,.12),inset 0 -1px 0 rgba(69,217,232,.12),0 16px 42px rgba(0,7,15,.3);
+}
+body[data-view=participant] .card:not(.join-card),
+body[data-view=presenter] .card{
+  background:var(--glass-surface);
+  border-color:var(--glass-border);
+  box-shadow:var(--glass-shadow);
+  -webkit-backdrop-filter:blur(22px) saturate(145%);
+  backdrop-filter:blur(22px) saturate(145%);
+}
+.live-questions{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:14px}
+.live-questions li{padding:12px 14px;border:1px solid var(--glass-border);border-radius:12px;background:#071c2a80}
+.question-content{white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Notificaciones flotantes: no desplazan el formulario ni el tablero. */
+#notice.toast{position:fixed;top:max(20px,env(safe-area-inset-top));right:max(20px,env(safe-area-inset-right));z-index:1000;display:flex;align-items:flex-start;gap:12px;width:min(480px,calc(100vw - 32px));max-height:calc(100svh - 48px);overflow:auto;margin:0;padding:16px;border:1px solid #45d9e880;border-radius:16px;background:linear-gradient(135deg,#103747ed,#071c2af5);color:#f0fbff;box-shadow:0 14px 48px #0007,inset 0 1px 0 #ffffff24;-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);font-size:14px;line-height:1.5;animation:toast-enter .2s ease-out}
+#notice.toast[hidden]{display:none}
+#notice.toast[data-kind=error],#notice.toast[data-kind=warning]{border-color:#efbc6180;background:linear-gradient(135deg,#333020f5,#101e2cf5)}
+.toast-icon{display:grid;place-items:center;flex-shrink:0;width:30px;height:30px;border-radius:50%;background:#19849050;color:#7ee9f3}
+#notice[data-kind=error] .toast-icon,#notice[data-kind=warning] .toast-icon{color:#ffdc93;background:#daa94025}
+.toast-icon .ui-icon{width:22px;height:22px}
+.toast-message{flex:1;min-width:0;align-self:center;white-space:pre-wrap;overflow-wrap:anywhere}
+#notice .toast-close{flex-shrink:0;display:grid;place-items:center;width:32px;height:32px;min-height:32px;margin:0;padding:0;border:0;border-radius:8px;background:transparent;color:#d3e4ed;font-size:26px;font-weight:400;line-height:1}
+#notice .toast-close:hover{background:#ffffff14;color:white}
+@keyframes toast-enter{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:600px){#notice.toast{top:max(12px,env(safe-area-inset-top));right:16px;left:16px;width:auto}}
+@media(prefers-reduced-motion:reduce){#notice.toast{animation:none}}

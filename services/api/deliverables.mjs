@@ -86,7 +86,16 @@ function prototype(typeId, architectureId, variants = []) {
 export function applyDemo(project, action, body, { iteration = 1, now = Date.now(), variants = [] } = {}) {
   const p = structuredClone(project ?? {});
   p.deliverables ??= {}; p.versions ??= [];
-  for (const [phase, code] of PREREQUISITES[action] ?? []) if (!isDelivered(p.deliverables[phase])) throw new ApiError(409, code);
+  for (const [phase, code] of PREREQUISITES[action] ?? []) {
+    if (isDelivered(p.deliverables[phase])) continue;
+    // Generar usa el contexto guardado; no convierte borradores en entregas.
+    const prior = p.deliverables[phase];
+    if (action === 'generate' && ['draft','needs_review'].includes(prior?.status)) {
+      try { validate(RULES[PHASES.find(item => item.id === phase).action], prior.data ?? {}, false); continue; }
+      catch { /* El borrador incompleto conserva el bloqueo y su mensaje de fase. */ }
+    }
+    throw new ApiError(409, code);
+  }
   if (action === 'generate') {
     if (typeof body.prompt !== 'string' || body.prompt.trim().length < 20 || body.prompt.length > 6000) throw new ApiError(400, 'PROMPT_LENGTH');
     if (p.versions.filter(v => v.phase === LOOP_TO && (v.iteration ?? 1) === iteration).length >= 3) throw new ApiError(429, 'ITERATION_LIMIT');

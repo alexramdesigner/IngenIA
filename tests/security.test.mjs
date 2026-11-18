@@ -939,3 +939,62 @@ test('PWA: manifiesto, service worker, iconos y página sin conexión servidos c
   assert.match(page, /rel="manifest" href="\/manifest.webmanifest"/); assert.match(page, /apple-touch-icon/);
   for (const internal of ['/apps/participant/sw.js', '/apps/participant/manifest.webmanifest', '/apps/participant/offline.html']) assert.equal((await fetch(h.base + internal)).status, 404, internal);
 });
+
+test('Preguntas durante teoría: persistencia, privacidad, orden y atención desde Studio', async t => {
+  const h = await harness(t);
+  const initial = (await h.request('/sessions/tarde/state',null,h.presenter)).body;
+  assert.equal((await h.request('/sessions/tarde/questions',{content:'¿Cómo definimos el problema?'},h.participant)).status,403);
+  await h.request('/sessions/tarde/phase-command',{action:'START',expectedVersion:initial.version,idempotencyKey:randomUUID()},h.presenter);
+  const second = (await h.request('/auth/join',{code:initial.joinCode,name:'Equipo B'})).cookie;
+  assert.equal((await h.request('/sessions/tarde/questions',{content:'abc'},h.participant)).status,400);
+  assert.equal((await h.request('/sessions/tarde/questions',{content:'¿Cómo definimos el problema?'},h.participant)).status,200);
+  assert.equal((await h.request('/sessions/tarde/questions',{content:'¿Cómo definimos el alcance?'},second)).status,200);
+  const staff=(await h.request('/sessions/tarde/state',null,h.presenter)).body;
+  assert.equal(staff.questions.length,2);
+  assert.equal(staff.questions[0].content,'¿Cómo definimos el alcance?');
+  assert.equal(staff.questions[0].phase,1);
+  assert.equal((await h.request('/sessions/tarde/state',null,h.participant)).body.questions.length,1);
+  assert.equal((await h.request('/sessions/tarde/questions',{id:staff.questions[0].id},h.participant)).status,400);
+  const otherPresenter=await h.login('noche');
+  assert.equal((await h.request('/sessions/noche/questions',{id:staff.questions[0].id},otherPresenter)).status,404);
+  assert.equal((await h.request('/sessions/tarde/questions',{id:staff.questions[0].id},h.presenter)).status,200);
+  assert.equal((await h.request('/sessions/tarde/state',null,second)).body.questions[0].answered,1);
+  const access=await h.request('/sessions/tarde/projector-access',{},h.presenter);
+  const projector=(await h.request('/auth/projector',{token:access.body.token})).cookie;
+  assert.equal((await h.request('/sessions/tarde/state',null,projector)).body.questions,undefined);
+});
+
+test('Generar usa especificación completa en borrador sin darla por entregada', async t => {
+  const h = await harness(t);
+  await h.command('START'); await h.act('discovery'); await h.command('ADVANCE');
+  await h.act('specification',{draft:true});
+  await h.command('ADVANCE',{confirm:true}); await h.act('architecture'); await h.command('ADVANCE');
+  const generated=await h.act('generate');
+  assert.equal(generated.status,200);
+  assert.ok(generated.body.team.project.versions[0].code.length>0);
+  assert.equal(generated.body.team.project.deliverables[2].status,'draft');
+});
+test('Generar sigue bloqueado si el borrador previo está incompleto', async t => {
+  const h = await harness(t);
+  await h.command('START');await h.act('discovery');await h.command('ADVANCE');
+  await h.act('specification',{draft:true,stories:[''],criteria:[''],negative:''});
+  await h.command('ADVANCE',{confirm:true});await h.act('architecture');await h.command('ADVANCE');
+  assert.equal((await h.act('generate')).body.error,'SPECIFICATION_REQUIRED');
+});
+
+test('Recuperar una entrega previa en fase 4 valida los datos y conserva la fase', async t => {
+  const h=await harness(t);
+  await h.command('START');await h.act('discovery');await h.command('ADVANCE');
+  await h.act('specification',{draft:true,stories:[''],criteria:[''],negative:''});
+  await h.command('ADVANCE',{confirm:true});await h.act('architecture');await h.command('ADVANCE');
+  let state=(await h.request('/sessions/tarde/state',null,h.participant)).body;
+  assert.equal((await h.request('/sessions/tarde/prerequisite',{action:'specification',expectedVersion:state.version,stories:[]},h.participant)).status,400);
+  const recovered=await h.request('/sessions/tarde/prerequisite',{...VALID.specification,action:'specification',expectedVersion:state.version},h.participant);
+  assert.equal(recovered.status,200);
+  assert.equal(recovered.body.activePhase,4);
+  assert.equal(recovered.body.team.project.deliverables[2].status,'submitted');
+  assert.equal((await h.act('generate')).status,200);
+  assert.equal((await h.request('/sessions/tarde/prerequisite',{...VALID.specification,action:'specification',expectedVersion:state.version},h.participant)).status,409);
+  await h.command('PAUSE');
+  assert.equal((await h.request('/sessions/tarde/prerequisite',{action:'discovery',expectedVersion:state.version},h.participant)).status,403);
+});

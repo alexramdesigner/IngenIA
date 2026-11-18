@@ -7,34 +7,35 @@ body[data-view=participant] main::before,#projection-stage main::before{content:
 body[data-view=participant]::after,#projection-stage::after{
   position:fixed;inset:-64px;
   background-image:
-    radial-gradient(circle at 0 0,rgba(201,250,114,.34) 0 1.4px,transparent 2.2px),
-    linear-gradient(rgba(140,230,170,.07) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(140,230,170,.07) 1px,transparent 1px);
+    radial-gradient(circle at 0 0,rgba(0,151,180,.35) 0 1.4px,transparent 2.2px),
+    linear-gradient(rgba(0,105,132,.1) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,105,132,.1) 1px,transparent 1px);
   background-size:64px 64px;
   -webkit-mask-image:radial-gradient(ellipse 75% 65% at 50% 42%,#000 20%,transparent 78%);
   mask-image:radial-gradient(ellipse 75% 65% at 50% 42%,#000 20%,transparent 78%);
   opacity:.55;will-change:transform;
   animation:ambient-grid-drift 32s linear infinite,ambient-grid-breathe 9s ease-in-out infinite alternate;
 }
-/* Proyector: mayor intensidad porque el proyector reduce el contraste. */
+/* Proyector: cuadrícula atenuada y sutil para evitar distracciones en el auditorio. */
 #projection-stage::after{position:absolute;inset:-80px;background-size:80px 80px;
   background-image:
-    radial-gradient(circle at 0 0,rgba(201,250,114,.6) 0 2px,transparent 3px),
-    linear-gradient(rgba(140,230,170,.13) 1.5px,transparent 1.5px),
-    linear-gradient(90deg,rgba(140,230,170,.13) 1.5px,transparent 1.5px);
-  -webkit-mask-image:radial-gradient(ellipse 85% 75% at 50% 45%,#000 30%,transparent 85%);
-  mask-image:radial-gradient(ellipse 85% 75% at 50% 45%,#000 30%,transparent 85%);
+    radial-gradient(circle at 0 0,rgba(0,151,180,.22) 0 1.5px,transparent 2.2px),
+    linear-gradient(rgba(0,105,132,.07) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,105,132,.07) 1px,transparent 1px);
+  -webkit-mask-image:radial-gradient(ellipse 85% 75% at 50% 45%,#000 25%,transparent 80%);
+  mask-image:radial-gradient(ellipse 85% 75% at 50% 45%,#000 25%,transparent 80%);
+  opacity:.32;
   animation-name:ambient-grid-drift-wide,ambient-grid-breathe-stage}
-@keyframes ambient-grid-breathe-stage{from{opacity:.7}to{opacity:1}}
+@keyframes ambient-grid-breathe-stage{from{opacity:.22}to{opacity:.38}}
 
 /* Barrido: banda de luz tenue que recorre la pantalla de arriba abajo. */
 body[data-view=participant] main::before,#projection-stage main::before{
   position:fixed;left:0;right:0;top:0;height:38vh;
-  background:linear-gradient(180deg,transparent,rgba(47,211,107,.05) 42%,rgba(201,250,114,.09) 50%,rgba(47,211,107,.05) 58%,transparent);
+  background:linear-gradient(180deg,transparent,rgba(0,105,132,.06) 42%,rgba(0,151,180,.1) 50%,rgba(0,105,132,.06) 58%,transparent);
   transform:translate3d(0,-40vh,0);will-change:transform;
   animation:ambient-scan 14s cubic-bezier(.45,0,.55,1) infinite;
 }
-#projection-stage main::before{position:absolute;height:400px;background:linear-gradient(180deg,transparent,rgba(47,211,107,.08) 42%,rgba(201,250,114,.14) 50%,rgba(47,211,107,.08) 58%,transparent);transform:translate3d(0,-420px,0);animation-name:ambient-scan-stage}
+#projection-stage main::before{position:absolute;height:400px;background:linear-gradient(180deg,transparent,rgba(0,105,132,.05) 42%,rgba(0,151,180,.08) 50%,rgba(0,105,132,.05) 58%,transparent);transform:translate3d(0,-420px,0);animation-name:ambient-scan-stage}
 
 @keyframes ambient-grid-drift{to{transform:translate3d(64px,64px,0)}}
 @keyframes ambient-grid-drift-wide{to{transform:translate3d(80px,80px,0)}}
