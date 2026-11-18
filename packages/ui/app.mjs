@@ -25,7 +25,8 @@ const esc = x => String(x ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 let current, stream, sessionId, offset = 0, online = false, busy = false;
 let draft = {}, pending = null, generationMessage = '';
 let participantTab = 'activities';
-let questionDraft='', sendingQuestion=false, questionAudio;
+let questionDraft='', sendingQuestion=false, questionAudio, questionSoundEnabled=true, questionProjectionBusy=false;
+try{questionSoundEnabled=localStorage.getItem('ingenia.questions.sound')!=='off';}catch{}
 let notesDraft, savingNotes = false;
 let speakerPhase=null,savingSpeakerNotes=false,reviewBusy=false,adminBusy=false;
 let speakerDrafts={};
@@ -41,7 +42,7 @@ function navigateParticipant(destination) {
 document.addEventListener('keydown', event => { if (view === 'presenter' && event.key === 'Escape' && studioMenuOpen) { setStudioMenu(false); document.querySelector('#studio-menu')?.focus(); } });
 for (const type of ['pwa:installable','pwa:installed']) document.addEventListener(type, () => { if (view === 'participant' && current && participantTab === 'profile') render(current); });
 document.addEventListener('participant:navigate', event => { if(view === 'participant') navigateParticipant(event.detail); });
-const errors = { PREREQUISITE_ALREADY_SENT:'Tu equipo ya envió esta entrega. La pantalla se actualizará.', INVALID_QUESTION:'Escribe una pregunta de 5 a 1000 caracteres.', QUESTIONS_CLOSED:'Las preguntas se habilitan durante el taller.', REVIEW_VERSION_CONFLICT:'La revisión cambió desde otro Studio. Revisa la selección e inténtalo de nuevo.', REVIEW_PRACTICE_REQUIRED:'Habilita la práctica antes de proyectar un equipo.', TEAM_WORK_REQUIRED:'Este equipo todavía no ha guardado su trabajo de esta fase.', TEAM_NOT_FOUND:'El equipo no pertenece a este horario.', MEMBER_NOT_FOUND:'Este integrante ya no está registrado.', PHASE_NOTE_VERSION_CONFLICT:'Estas notas cambiaron en otro Studio. Tu borrador se conserva; recarga las notas guardadas antes de reemplazarlas.', INVALID_PHASE_NOTE:'Las notas de cada fase admiten hasta 6000 caracteres.', INVALID_TRANSITION:'Esta acción no está disponible en el momento actual.', IDENTITY_REQUIRED: 'Escribe tu nombre completo y un correo válido.', TEAM_CHANGE_NOT_ALLOWED: 'Ya estás registrado en otro equipo de este horario. Ingresa con el nombre de tu equipo original.', IDENTITY_MISMATCH: 'Este navegador pertenece a otro participante. Usa otro perfil para registrar a otra persona.', NOTES_READ_ONLY: 'Las notas están en lectura mientras la sesión está pausada o finalizada.', NOTE_VERSION_CONFLICT: 'Las notas cambiaron en otra pestaña. Copia tu borrador y recarga antes de guardar.', INVALID_NOTE: 'Las notas admiten hasta 3000 caracteres.', PHASE_LOCKED: 'Esta acción está bloqueada. Espera la fase indicada por el conferencista.', VERSION_CONFLICT: 'La sesión cambió. Revisa el estado actualizado y vuelve a intentarlo.', INVALID_CREDENTIALS: 'Credenciales incorrectas o enlace expirado.', INVALID_JOIN: 'Revisa el horario y el nombre del equipo.', TEAM_FULL: 'Este equipo ya tiene seis integrantes. Elige otro equipo o crea uno nuevo.', TEAM_SELECTION_CHANGED: 'El nombre cambió. Selecciona de nuevo el equipo sugerido.', ALREADY_IN_TEAM: 'Ya perteneces a otro equipo de esta sala. Conserva tu acceso actual.', INCOMPLETE_TEAMS: 'Hay equipos con entregas pendientes. Confirma antes de avanzar.', PROMPT_LENGTH: 'El prompt necesita entre 20 y 6000 caracteres.', DELIVERABLE_INVALID: 'Revisa la entrega: falta información o un campo es muy corto.', DISCOVERY_REQUIRED: 'Faltan datos de Descubrimiento. Complétalos en esta pantalla antes de generar.', SPECIFICATION_REQUIRED: 'Faltan datos de Especificación (fase 2). Abre «Completar y enviar Especificación» junto al prompt para corregirlos y continuar.', ARCHITECTURE_REQUIRED: 'Faltan datos de Arquitectura. Complétalos en esta pantalla antes de generar.', CONSTRUCTION_REQUIRED: 'Primero envíen la revisión de Construcción con IA.', VERIFICATION_REQUIRED: 'Primero envíen el hallazgo de Verificación.', PROTOTYPE_REQUIRED: 'Generen una versión del prototipo en esta iteración antes de revisarla.', INCIDENT_NOT_FOUND: 'El incidente no está asignado a este equipo.', INCIDENT_ALREADY_ASSIGNED: 'Ese incidente ya está asignado al equipo.', INCIDENT_PHASE_TAKEN: 'El equipo ya tiene un incidente en esta fase. Quítalo antes de asignar otro.', INCIDENT_PHASE_MISMATCH: 'Solo se puede revelar o compartir durante la fase del incidente.', INCIDENT_HAS_RESPONSE: 'El equipo ya respondió; no se puede ocultar.', INCIDENT_NOT_REVEALED: 'Primero revela el incidente al equipo.', INCIDENT_SHARE_CONFLICT: 'La intervención cambió desde otro Studio. Revisa el estado e inténtalo de nuevo.', INCIDENT_NOT_SHARED: 'No hay un incidente en pantalla.', INCIDENT_CLOSED: 'Este incidente ya se cerró.', RESET_DISABLED: 'El reinicio está bloqueado en este servidor (ALLOW_SESSION_RESET=false).', RESET_CONFIRMATION_REQUIRED: 'Escribe la frase de confirmación exactamente como aparece.', RESET_SESSION_ACTIVE: 'La sesión está en vivo: pausa o finaliza antes de reiniciar.', INCIDENT_RESPONSE_INVALID: 'Elige una opción y justifica la decisión (mínimo 10 caracteres).', RATE_LIMITED: 'Demasiados intentos. Espera un minuto.', ITERATION_LIMIT: 'Se alcanzó el límite de esta iteración.', UNAUTHENTICATED: 'La sesión de acceso expiró. Vuelve a ingresar.' };
+const errors = { QUESTION_PERSONAL_LIMIT:'Ya enviaste tu pregunta de esta fase. Podrás preguntar de nuevo en la siguiente.', QUESTION_PHASE_LIMIT:'Se alcanzó el máximo de 5 preguntas en esta fase. Podrás preguntar en la siguiente.', QUESTION_NOT_FOUND:'La pregunta ya no está disponible.', QUESTION_PROJECTION_CONFLICT:'La proyección cambió desde otro Studio. Revisa el estado e inténtalo de nuevo.', PREREQUISITE_ALREADY_SENT:'Tu equipo ya envió esta entrega. La pantalla se actualizará.', INVALID_QUESTION:'Escribe una pregunta de 5 a 1000 caracteres.', QUESTIONS_CLOSED:'Las preguntas se habilitan durante el taller.', REVIEW_VERSION_CONFLICT:'La revisión cambió desde otro Studio. Revisa la selección e inténtalo de nuevo.', REVIEW_PRACTICE_REQUIRED:'Habilita la práctica antes de proyectar un equipo.', TEAM_WORK_REQUIRED:'Este equipo todavía no ha guardado su trabajo de esta fase.', TEAM_NOT_FOUND:'El equipo no pertenece a este horario.', MEMBER_NOT_FOUND:'Este integrante ya no está registrado.', PHASE_NOTE_VERSION_CONFLICT:'Estas notas cambiaron en otro Studio. Tu borrador se conserva; recarga las notas guardadas antes de reemplazarlas.', INVALID_PHASE_NOTE:'Las notas de cada fase admiten hasta 6000 caracteres.', INVALID_TRANSITION:'Esta acción no está disponible en el momento actual.', IDENTITY_REQUIRED: 'Escribe tu nombre completo y un correo válido.', TEAM_CHANGE_NOT_ALLOWED: 'Ya estás registrado en otro equipo de este horario. Ingresa con el nombre de tu equipo original.', IDENTITY_MISMATCH: 'Este navegador pertenece a otro participante. Usa otro perfil para registrar a otra persona.', NOTES_READ_ONLY: 'Las notas están en lectura mientras la sesión está pausada o finalizada.', NOTE_VERSION_CONFLICT: 'Las notas cambiaron en otra pestaña. Copia tu borrador y recarga antes de guardar.', INVALID_NOTE: 'Las notas admiten hasta 3000 caracteres.', PHASE_LOCKED: 'Esta acción está bloqueada. Espera la fase indicada por el conferencista.', VERSION_CONFLICT: 'La sesión cambió. Revisa el estado actualizado y vuelve a intentarlo.', INVALID_CREDENTIALS: 'Credenciales incorrectas o enlace expirado.', INVALID_JOIN: 'Revisa el horario y el nombre del equipo.', TEAM_FULL: 'Este equipo ya tiene seis integrantes. Elige otro equipo o crea uno nuevo.', TEAM_SELECTION_CHANGED: 'El nombre cambió. Selecciona de nuevo el equipo sugerido.', ALREADY_IN_TEAM: 'Ya perteneces a otro equipo de esta sala. Conserva tu acceso actual.', INCOMPLETE_TEAMS: 'Hay equipos con entregas pendientes. Confirma antes de avanzar.', PROMPT_LENGTH: 'El prompt necesita entre 20 y 6000 caracteres.', DELIVERABLE_INVALID: 'Revisa la entrega: falta información o un campo es muy corto.', DISCOVERY_REQUIRED: 'Faltan datos de Descubrimiento. Complétalos en esta pantalla antes de generar.', SPECIFICATION_REQUIRED: 'Faltan datos de Especificación (fase 2). Abre «Completar y enviar Especificación» junto al prompt para corregirlos y continuar.', ARCHITECTURE_REQUIRED: 'Faltan datos de Arquitectura. Complétalos en esta pantalla antes de generar.', CONSTRUCTION_REQUIRED: 'Primero envíen la revisión de Construcción con IA.', VERIFICATION_REQUIRED: 'Primero envíen el hallazgo de Verificación.', PROTOTYPE_REQUIRED: 'Generen una versión del prototipo en esta iteración antes de revisarla.', INCIDENT_NOT_FOUND: 'El incidente no está asignado a este equipo.', INCIDENT_ALREADY_ASSIGNED: 'Ese incidente ya está asignado al equipo.', INCIDENT_PHASE_TAKEN: 'El equipo ya tiene un incidente en esta fase. Quítalo antes de asignar otro.', INCIDENT_PHASE_MISMATCH: 'Solo se puede revelar o compartir durante la fase del incidente.', INCIDENT_HAS_RESPONSE: 'El equipo ya respondió; no se puede ocultar.', INCIDENT_NOT_REVEALED: 'Primero revela el incidente al equipo.', INCIDENT_SHARE_CONFLICT: 'La intervención cambió desde otro Studio. Revisa el estado e inténtalo de nuevo.', INCIDENT_NOT_SHARED: 'No hay un incidente en pantalla.', INCIDENT_CLOSED: 'Este incidente ya se cerró.', RESET_DISABLED: 'El reinicio está bloqueado en este servidor (ALLOW_SESSION_RESET=false).', RESET_CONFIRMATION_REQUIRED: 'Escribe la frase de confirmación exactamente como aparece.', RESET_SESSION_ACTIVE: 'La sesión está en vivo: pausa o finaliza antes de reiniciar.', INCIDENT_RESPONSE_INVALID: 'Elige una opción y justifica la decisión (mínimo 10 caracteres).', RATE_LIMITED: 'Demasiados intentos. Espera un minuto.', ITERATION_LIMIT: 'Se alcanzó el límite de esta iteración.', UNAUTHENTICATED: 'La sesión de acceso expiró. Vuelve a ingresar.' };
 async function api(path, data) {
   const res = await fetch(({ presenter: '/api/studio', projector: '/api/projection', participant: '/api' })[view] + path, { method: data ? 'POST' : 'GET', headers: data ? { 'Content-Type': 'application/json' } : {}, body: data ? JSON.stringify(data) : undefined });
   const result = await res.json();
@@ -151,6 +152,13 @@ function participantRoleBadge(role) {
   const key = roles[role];
   return key ? `<span class="student-role-avatar role-${key}" aria-hidden="true">${icon(key)}</span>` : `<span class="student-avatar" aria-hidden="true">${icon('person')}</span>`;
 }
+function participantQuestions(s){
+  const quota=s.questionQuota;
+  const exhausted=quota && (!quota.remaining || !quota.personalRemaining);
+  const open=['ACTIVE','PAUSED'].includes(s.status)&&s.activePhase;
+  const message=!open?'Las preguntas se habilitan al iniciar el taller.':quota&&!quota.personalRemaining?'Ya enviaste tu pregunta de esta fase. Podrás preguntar de nuevo en la siguiente.':quota&&!quota.remaining?'Se completaron los 5 cupos de esta fase. Podrás preguntar en la siguiente.':`Quedan ${quota?.remaining??5} de ${quota?.limit??5} cupos para toda la sesión en esta fase. Máximo 1 pregunta por participante.`;
+  return `<div class="student-page-title"><button class="student-back" data-go="activities" aria-label="Volver a Actividades">${icon('back')}</button><h1>Preguntas en vivo</h1></div><form id="question-form" class="card"><p class="question-quota ${exhausted?'is-full':''}" role="status">${icon(exhausted?'check':'chat')}<span>${esc(message)}</span></p><label>¿Qué quieres preguntar?<textarea name="question" minlength="5" maxlength="1000" required ${exhausted?'readonly':''} placeholder="Escribe tu duda para el conferencista…">${esc(questionDraft)}</textarea></label><button ${!online||sendingQuestion||!open||exhausted?'disabled':''}>${sendingQuestion?'Enviando…':exhausted?'Cupo de esta fase utilizado':'Enviar pregunta'}</button><p class="muted">El conferencista podrá mostrar tu pregunta y tu nombre en el proyector.</p></form><section class="card"><h2>Mis preguntas</h2>${questionList(s.questions)}</section>`;
+}
 function participantScreen(s, workshop) {
   const phase = PHASES.find(p=>p.id===s.activePhase);
   const surveyOpen = s.status === 'FINISHED';
@@ -167,7 +175,7 @@ function participantScreen(s, workshop) {
       <button class="activity-tile" ${surveyOpen ? 'data-go="survey"' : 'disabled'}><span class="tile-icon tile-chart">${icon('chart')}</span><strong>Encuesta</strong><span>Comparte tu experiencia.</span>${surveyOpen ? '' : '<small>Disponible al final de la presentación</small>'}</button>
     </div><p class="student-page-note">Seis fases AI-DSE, un mismo equipo. El conferencista habilita cada actividad.</p>`;
   if (participantTab === 'home') return `<h1>Tu experiencia con IA</h1><section class="card"><h2>${esc(status)}</h2><p>${esc(phase?.mission ?? 'Prepara tu equipo. Las actividades se habilitan durante la explicación.')}</p><p>${esc(s.team.name)} · ${s.team.memberCount}/${s.team.maxMembers} integrantes</p><button data-go="activities">Ver actividades</button><button class="secondary" data-go="workshop">Ir al taller</button></section>`;
-  if (participantTab === 'questions') return `<div class="student-page-title"><button class="student-back" data-go="activities" aria-label="Volver a Actividades">${icon('back')}</button><h1>Preguntas en vivo</h1></div><form id="question-form" class="card"><label>¿Qué quieres preguntar?<textarea name="question" minlength="5" maxlength="1000" required placeholder="Escribe tu duda para el conferencista…">${esc(questionDraft)}</textarea></label><button ${!online || sendingQuestion || !['ACTIVE','PAUSED'].includes(s.status)?'disabled':''}>${sendingQuestion?'Enviando…':'Enviar pregunta'}</button><p class="muted">${['ACTIVE','PAUSED'].includes(s.status)?'Tu pregunta llegará a Studio. Solo tú y el conferencista pueden verla.':'Las preguntas se habilitan al iniciar el taller.'}</p></form><section class="card"><h2>Mis preguntas</h2>${questionList(s.questions)}</section>`;
+  if (participantTab === 'questions') return participantQuestions(s);
   if (participantTab === 'survey') return `<div class="student-page-title"><button class="student-back" data-go="activities" aria-label="Volver a Actividades">${icon('back')}</button><h1>Encuesta de satisfacción</h1></div><section class="card survey-card">${surveyOpen ? `<h2>Comparte tu experiencia</h2><p>Escanea el código QR o abre el enlace para responder la encuesta.</p><div class="survey-qr">${SURVEY_QR ? `<img src="${esc(SURVEY_QR)}" alt="Código QR de la encuesta de satisfacción" width="240" height="240">` : '<p class="muted">Código QR pendiente</p>'}</div><p class="survey-link">${SURVEY_URL ? `<a href="${esc(SURVEY_URL)}" target="_blank" rel="noopener">${esc(SURVEY_URL)}</a>` : '<span class="muted">Enlace pendiente</span>'}</p>` : '<h2>Disponible al final de la presentación</h2><p>El conferencista habilitará la encuesta al cerrar la presentación.</p>'}</section>`;
   return `<h1>Mi perfil</h1><section class="card"><h2>${esc(s.profile?.fullName || s.team.name)}</h2><p>${esc(s.profile?.email ?? '')}</p><p>Mi rol: <strong>${esc(s.profile?.teamRole ?? 'Pendiente')}</strong></p><p>Equipo: ${esc(s.team.name)}</p><p>${s.team.memberCount}/${s.team.maxMembers} integrantes</p><p>${esc(s.title)}</p><p>Conserva este navegador para recuperar tu acceso. El progreso pertenece al equipo.</p><button class="secondary" id="logout">Cerrar acceso</button></section>${installCard()}`;
 }
@@ -185,7 +193,11 @@ function render(s) {
     app.innerHTML = participantScreen(s, app.innerHTML);
     document.dispatchEvent(new CustomEvent('participant:screen',{detail:participantTab}));
   }
-  if(view==='projector'&&s.incidentShare?.visible)app.innerHTML=`<div class="projection-review-background" inert aria-hidden="true">${app.innerHTML}</div><div class="projection-review-overlay"><div class="projection-review-modal incident-share" role="dialog" aria-modal="true" aria-label="Incidente en discusión">${incidentShareContent(s.incidentShare)}</div></div>`;
+  if(view==='projector'&&s.questionProjection?.visible){
+    const q=s.questionProjection;
+    app.innerHTML=`<div class="projection-review-background" inert aria-hidden="true">${app.innerHTML}</div><div class="projection-review-overlay"><article class="projection-review-modal projected-question" role="dialog" aria-modal="true" aria-label="Pregunta del público"><p class="projected-question-label">${icon('chat')} Pregunta del público · Fase ${q.phase??'—'}</p><h1>${esc(q.fullName || 'Participante')}${q.teamName?`<span>${esc(q.teamName)}</span>`:''}</h1><p class="projected-question-text ${q.content.length>500?'is-long':''}">${esc(q.content)}</p></article></div>`;
+  }
+  else if(view==='projector'&&s.incidentShare?.visible)app.innerHTML=`<div class="projection-review-background" inert aria-hidden="true">${app.innerHTML}</div><div class="projection-review-overlay"><div class="projection-review-modal incident-share" role="dialog" aria-modal="true" aria-label="Incidente en discusión">${incidentShareContent(s.incidentShare)}</div></div>`;
   else if(view==='projector'&&s.teamReview?.visible)app.innerHTML=`<div class="projection-review-background" inert aria-hidden="true">${app.innerHTML}</div><div class="projection-review-overlay"><div class="projection-review-modal" role="dialog" aria-modal="true" aria-label="Revisión del trabajo del equipo">${reviewContent(s.teamReview)}</div></div>`;
   tick(); bind();
   if (focusState) {
@@ -214,10 +226,17 @@ function recordStudioEvent(type, s) {
   studioEvents = [{ time: new Date().toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit',hour12:false}), text: EVENT_LABELS[type](s) }, ...studioEvents].slice(0,8);
 }
 function questionList(questions = [], staff = false) {
-  return questions.length ? `<ul class="live-questions">${questions.map(q=>`<li><p><strong>${staff ? esc(q.fullName || q.teamName || 'Participante')+' · ' : ''}Fase ${q.phase ?? '—'}</strong> · ${new Date(q.createdAt).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}</p><p class="question-content">${esc(q.content)}</p>${q.answered?'<small>Atendida</small>':staff?`<button class="secondary" data-answer-question="${q.id}">Marcar atendida</button>`:'<small>Enviada al conferencista</small>'}</li>`).join('')}</ul>` : '<p class="muted">Todavía no hay preguntas.</p>';
+  return questions.length ? `<ul class="live-questions ${staff?'staff-questions':''}">${questions.map(q=>{
+    const projected=staff&&current?.questionProjection?.visible&&current.questionProjection.id===q.id;
+    return `<li class="${projected?'is-projected':''}"><p><strong>${staff ? esc(q.fullName || q.teamName || 'Participante')+' · ' : ''}Fase ${q.phase ?? '—'}</strong> · ${new Date(q.createdAt).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}</p><p class="question-content">${esc(q.content)}</p><div class="question-actions">${q.answered?`<small class="question-answered">${icon('check')} Atendida</small>`:staff?`<button class="secondary" data-answer-question="${q.id}">Marcar atendida</button>`:'<small>Enviada al conferencista</small>'}${staff?`<button class="secondary question-project ${projected?'is-active':''}" data-project-question="${q.id}" ${questionProjectionBusy||!online?'disabled':''} aria-pressed="${Boolean(projected)}">${icon('projector')}${projected?'Quitar del proyector':'Mostrar en proyector'}</button>`:''}</div></li>`;
+  }).join('')}</ul>` : '<p class="muted">Todavía no hay preguntas.</p>';
+}
+function soundToggleMarkup(){
+  const label=questionSoundEnabled?'Desactivar sonido de preguntas':'Activar sonido de preguntas';
+  return `<button id="question-sound" type="button" class="question-sound-toggle ${questionSoundEnabled?'is-active':''}" aria-label="${label}" title="${label}" aria-pressed="${questionSoundEnabled}">${icon(questionSoundEnabled?'soundOn':'soundOff')}</button>`;
 }
 function enableQuestionAudio() {
-  if (view !== 'presenter') return;
+  if (view !== 'presenter' || !questionSoundEnabled) return;
   try { questionAudio ??= new (window.AudioContext || window.webkitAudioContext)(); questionAudio.resume().catch(()=>{}); } catch {}
 }
 document.addEventListener('pointerdown',enableQuestionAudio);
@@ -227,7 +246,7 @@ function notifyQuestion(next) {
   const previous = Math.max(0,...(current.questions ?? []).map(q=>q.id));
   if (!(next.questions ?? []).some(q=>q.id>previous)) return;
   try {
-    if (questionAudio?.state !== 'running') return;
+    if (!questionSoundEnabled || questionAudio?.state !== 'running') return;
     const start=questionAudio.currentTime;
     [660,880].forEach((frequency,i)=>{const osc=questionAudio.createOscillator(),gain=questionAudio.createGain();osc.frequency.value=frequency;gain.gain.setValueAtTime(0,start+i*.18);gain.gain.linearRampToValueAtTime(.15,start+i*.18+.015);gain.gain.exponentialRampToValueAtTime(.001,start+i*.18+.28);osc.connect(gain);gain.connect(questionAudio.destination);osc.start(start+i*.18);osc.stop(start+i*.18+.3);});
   } catch {}
@@ -380,7 +399,7 @@ function studioScreen(s) {
 
     <div class="studio-topbar"><button class="studio-menu-button" id="studio-menu" aria-label="Abrir menú" aria-controls="studio-sidebar" aria-expanded="${studioMenuOpen}">${icon('menu')}</button><div class="studio-heading"><p class="muted">Control Center · ${esc(s.title)}</p><h1>${section[1]}</h1></div><div class="session-bar"><span class="studio-status status-${s.status.toLowerCase()}">${STATUS_LABELS[s.status] ?? esc(s.status)}${s.status==='ACTIVE'||s.status==='PAUSED'?` · Fase ${s.activePhase}/${PHASES.length} · ${STAGE_LABELS[s.phaseStage]}${(s.iteration??1)>1&&[LOOP_TO,LOOP_FROM].includes(s.activePhase)?` · It. ${s.iteration}`:''}`:''}</span>${['ACTIVE','PAUSED'].includes(s.status)&&s.phaseStage==='PRACTICE'?'<span class="session-timer" data-timer aria-label="Tiempo restante"></span>':''}${studioCommands(s)}</div></div>
     ${body}
-    <section id="studio-questions" class="studio-panel"><h2>Preguntas en vivo</h2><button id="question-sound" class="secondary">${questionAudio?.state==='running'?'Sonido activado':'Activar sonido de preguntas'}</button>${questionList(s.questions,true)}</section>
+    <section id="studio-questions" class="studio-panel"><div class="questions-heading"><h2>Preguntas en vivo ${s.activePhase?`<small class="question-quota-count">${s.questionQuota?.used??0}/${s.questionQuota?.limit??5} en esta fase</small>`:''}</h2>${soundToggleMarkup()}</div>${s.questionProjection?.visible?'<button class="secondary" data-hide-question>Quitar pregunta del proyector</button>':''}${questionList(s.questions,true)}</section>
   </div>
 </div>`;
 }
@@ -421,7 +440,24 @@ function bind() {
     const latest=versions.filter(v=>v.phase===LOOP_TO&&(v.iteration??1)===(current.iteration??1)).at(-1);
     if(latest)mountPrototypePreview(previewHost,latest,`${current.id}:${current.team.id}:${current.iteration??1}:${latest.createdAt}:${versions.length}`);
   }
-  document.querySelector('#question-sound')?.addEventListener('click',()=>{enableQuestionAudio();document.querySelector('#question-sound').textContent='Sonido activado';});
+  document.querySelector('#question-sound')?.addEventListener('click',()=>{
+    questionSoundEnabled=!questionSoundEnabled;
+    try{localStorage.setItem('ingenia.questions.sound',questionSoundEnabled?'on':'off');}catch{}
+    if(questionSoundEnabled)enableQuestionAudio();
+    render(current);document.querySelector('#question-sound')?.focus();
+  });
+  async function projectQuestion(action,id){
+    if(questionProjectionBusy||!online)return;
+    questionProjectionBusy=true;render(current);
+    try{render(await api(`/sessions/${current.id}/question-projection`,{action,id,expectedVersion:current.questionProjection?.version??0}));}
+    catch(error){showNotice(error.message,'error');if(error.code==='QUESTION_PROJECTION_CONFLICT')await refresh();}
+    finally{questionProjectionBusy=false;render(current);}
+  }
+  document.querySelectorAll('[data-project-question]').forEach(button=>button.addEventListener('click',()=>{
+    const id=Number(button.dataset.projectQuestion);
+    projectQuestion(current.questionProjection?.visible&&current.questionProjection.id===id?'HIDE':'SHOW',id);
+  }));
+  document.querySelector('[data-hide-question]')?.addEventListener('click',()=>projectQuestion('HIDE'));
   document.querySelectorAll('[data-answer-question]').forEach(button=>button.addEventListener('click',async()=>{try{render(await api(`/sessions/${current.id}/questions`,{id:Number(button.dataset.answerQuestion)}));}catch(error){showNotice(error.message, 'error');}}));
   const questionForm=document.querySelector('#question-form');
   questionForm?.elements.question.addEventListener('input',e=>{questionDraft=e.target.value;});
@@ -429,7 +465,7 @@ function bind() {
     e.preventDefault(); if(sendingQuestion || !online) return;
     sendingQuestion=true; render(current);
     try {const next=await api(`/sessions/${current.id}/questions`,{content:questionDraft});questionDraft='';showNotice('Pregunta enviada al conferencista.');render(next);}
-    catch(error){showNotice(error.message, 'error');}
+    catch(error){showNotice(error.message, 'error');if(['QUESTION_PERSONAL_LIMIT','QUESTION_PHASE_LIMIT'].includes(error.code))await refresh();}
     finally{sendingQuestion=false;render(current);}
   });
 
@@ -626,7 +662,7 @@ async function connect() {
       }
     }
   };
-  for (const type of ['state','session.started','phase.closed','phase.opened','session.paused','session.resumed','session.finished','timer.updated','team.progress','phase.practice','presenter.notes.updated','team.review.updated','presence.updated','phase.reflection','phase.completed','incident.updated','question.updated']) stream.addEventListener(type, e => { online = true; setConnection('En vivo · Servidor conectado'); const next = JSON.parse(e.data); notifyQuestion(next); recordStudioEvent(type, next); render(next); });
+  for (const type of ['state','session.started','phase.closed','phase.opened','session.paused','session.resumed','session.finished','timer.updated','team.progress','phase.practice','presenter.notes.updated','team.review.updated','presence.updated','phase.reflection','phase.completed','incident.updated','question.updated','question.projection.updated']) stream.addEventListener(type, e => { online = true; setConnection('En vivo · Servidor conectado'); const next = JSON.parse(e.data); notifyQuestion(next); recordStudioEvent(type, next); render(next); });
 }
 async function boot() {
   try {

@@ -141,3 +141,11 @@ body[data-view=projector] #notice{display:none}
 #projection-stage .incident-display-question{padding:22px 28px;border-left:5px solid var(--pj-lime);background:rgba(25,132,144,.1);font-size:36px!important;font-weight:700;color:var(--accent-bright)}
 #projection-stage .incident-display-learning{display:grid;gap:8px;margin-top:22px;padding:22px 28px;border-radius:18px;background:rgba(23,104,120,.2);font-size:30px}
 #projection-stage .incident-display-learning span{color:var(--muted);font-size:24px}
+
+#projection-stage .projected-question{padding:52px 64px;background:var(--glass-surface);border-color:var(--glass-border);box-shadow:var(--glass-shadow)}
+#projection-stage .projected-question-label{display:flex;align-items:center;gap:16px;color:var(--accent-bright);font-size:28px;margin:0 0 28px}
+.projected-question-label .ui-icon{width:36px;height:36px}
+#projection-stage .projected-question h1{font-size:46px;line-height:1.15;margin:0 0 32px;overflow-wrap:anywhere}
+#projection-stage .projected-question h1 span{display:block;margin-top:12px;font-size:26px;color:var(--muted);font-weight:500}
+#projection-stage .projected-question .projected-question-text{font-size:48px;line-height:1.4;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+#projection-stage .projected-question .projected-question-text.is-long{font-size:36px;line-height:1.35}

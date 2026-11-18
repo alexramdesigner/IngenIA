@@ -76,6 +76,19 @@ export function createApp(options = {}) {
     const row=db.prepare('SELECT data FROM team_reviews WHERE session_id=?').get(id);
     return row?JSON.parse(row.data):{visible:false,version:0};
   };
+  const questionQuota = (id,phase,actorId) => {
+    const counts=db.prepare('SELECT COUNT(*) AS used,COALESCE(SUM(actor_id=?),0) AS personalUsed FROM live_questions WHERE session_id=? AND phase IS ?').get(actorId,id,phase??null);
+    return {phase,limit:5,personalLimit:1,used:counts.used,personalUsed:counts.personalUsed,remaining:Math.max(0,5-counts.used),personalRemaining:Math.max(0,1-counts.personalUsed)};
+  };
+  const questionProjection = id => {
+    const row=db.prepare('SELECT data FROM question_projections WHERE session_id=?').get(id);
+    return row?JSON.parse(row.data):{visible:false,version:0};
+  };
+  const saveQuestionProjection = (id,value) => db.prepare('INSERT INTO question_projections VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET data=excluded.data').run(id,JSON.stringify(value));
+  const hideQuestionProjection = id => {
+    const current=questionProjection(id);
+    if(current.visible)saveQuestionProjection(id,{visible:false,version:current.version+1});
+  };
   // Incidentes: asignaciones por equipo y la intervención que se comparte en el auditorio.
   const incidentShare = id => {
     const row = db.prepare('SELECT data FROM incident_shares WHERE session_id=?').get(id);
@@ -116,13 +129,14 @@ export function createApp(options = {}) {
   function state(id, actor, snap = snapshot(id)) {
     const { s, teams, summary, memberCount, once, share } = snap;
     const result = { ...s, statisticsCode: snap.codes.statistics_code, serverTime: Date.now(), permissions: permissions(s, actor.role), role: actor.role, summary, actorId: actor.id };
-    if (['PRESENTER','PROJECTOR'].includes(actor.role)) result.teamReview = snap.review;
+    if (['PRESENTER','PROJECTOR'].includes(actor.role)) { result.teamReview = snap.review; result.questionProjection=once('questionProjection',()=>questionProjection(id)); }
     if (actor.role === 'PROJECTOR') {
       result.incidentShare = once('projectorIncident', () => projectorIncident(share, share.visible ? teams.find(t => t.id === share.teamId)?.name : null));
       // Auditorio: solo nombre del equipo y fases entregadas, sin integrantes ni contenido.
       result.leaderboard = once('leaderboard', () => teams.map(t => ({ name: t.name, completed: delivered(t.project).length })).sort((a, b) => b.completed - a.completed || a.name.localeCompare(b.name, 'es')));
     }
     if (actor.role === 'PRESENTER' || actor.role === 'PARTICIPANT') {
+      result.questionQuota=questionQuota(id,s.activePhase,actor.id);
       result.questions = db.prepare(`SELECT q.id,q.content,q.phase,q.created_at AS createdAt,q.answered,p.full_name AS fullName,t.name AS teamName FROM live_questions q LEFT JOIN participant_profiles p ON p.identity_id=q.actor_id LEFT JOIN identities i ON i.id=q.actor_id LEFT JOIN teams t ON t.id=i.team_id WHERE q.session_id=?${actor.role === 'PARTICIPANT' ? ' AND q.actor_id=?' : ''} ORDER BY q.id DESC LIMIT 100`).all(...(actor.role === 'PARTICIPANT' ? [id,actor.id] : [id]));
     }
     if (actor.role === 'PRESENTER') {
@@ -324,7 +338,7 @@ export function createApp(options = {}) {
       if (path === '/api/me' && req.method === 'GET') {
         const a = authenticate(req); return json(res, 200, { sessionId: a.session_id, role: a.role });
       }
-      const match = new RegExp(`^/api/sessions/([a-z]+)/(state|events|questions|prerequisite|export|phase-command|phase-notes|team-review|team-admin|deliverable-review|incidents|incident-response|reset|projector-access|report|actions/(${Object.keys(ACTION_PHASE).join('|')}))$`).exec(path);
+      const match = new RegExp(`^/api/sessions/([a-z]+)/(state|events|questions|question-projection|prerequisite|export|phase-command|phase-notes|team-review|team-admin|deliverable-review|incidents|incident-response|reset|projector-access|report|actions/(${Object.keys(ACTION_PHASE).join('|')}))$`).exec(path);
       if (match) {
         const [, id, route, action] = match;
         const actor = authenticate(req); authorize(actor, id);
@@ -343,6 +357,28 @@ export function createApp(options = {}) {
           });
           emitTeamProgress(id,actor.team_id);return json(res,200,result);
         }
+        if (route === 'question-projection' && req.method === 'POST') {
+          authorize(actor,id,'PRESENTER');const b=await body(req);
+          const result=transaction(db,()=>{
+            const old=questionProjection(id);
+            if(b.expectedVersion!==old.version)throw new ApiError(409,'QUESTION_PROJECTION_CONFLICT');
+            let next;
+            if(b.action==='HIDE')next={visible:false,version:old.version+1};
+            else if(b.action==='SHOW'){
+              if(!Number.isSafeInteger(b.id))throw new ApiError(400,'INVALID_QUESTION');
+              const q=db.prepare('SELECT q.id,q.content,q.phase,p.full_name AS fullName,t.name AS teamName FROM live_questions q LEFT JOIN participant_profiles p ON p.identity_id=q.actor_id LEFT JOIN identities i ON i.id=q.actor_id LEFT JOIN teams t ON t.id=i.team_id WHERE q.id=? AND q.session_id=?').get(b.id,id);
+              if(!q)throw new ApiError(404,'QUESTION_NOT_FOUND');
+              next={visible:true,version:old.version+1,...q};
+              const review=teamReview(id),share=incidentShare(id);
+              if(review.visible)db.prepare('UPDATE team_reviews SET data=? WHERE session_id=?').run(JSON.stringify({visible:false,version:review.version+1}),id);
+              if(share.visible)saveShare(id,{visible:false,version:share.version+1});
+            }else throw new ApiError(400,'INVALID_COMMAND');
+            saveQuestionProjection(id,next);
+            return state(id,actor);
+          });
+          emit(id,'question.projection.updated','PRESENTER');emit(id,'question.projection.updated','PROJECTOR');
+          return json(res,200,result);
+        }
         if (route === 'questions' && req.method === 'POST') {
           const b = await body(req);
           if (actor.role === 'PRESENTER') {
@@ -351,14 +387,20 @@ export function createApp(options = {}) {
             if (!changed.changes) throw new ApiError(404,'QUESTION_NOT_FOUND');
           } else {
             authorize(actor,id,'PARTICIPANT');
-            const s = getSession(id);
-            if (!['ACTIVE','PAUSED'].includes(s.status)) throw new ApiError(403,'QUESTIONS_CLOSED');
-            if (typeof b.content !== 'string' || b.content.trim().length < 5 || b.content.trim().length > 1000) throw new ApiError(400,'INVALID_QUESTION');
-            const last = db.prepare('SELECT created_at FROM live_questions WHERE session_id=? AND actor_id=? ORDER BY id DESC LIMIT 1').get(id,actor.id);
-            if (last && Date.now()-last.created_at < 5000) throw new ApiError(429,'RATE_LIMITED');
-            db.prepare('INSERT INTO live_questions(session_id,actor_id,content,phase,created_at) VALUES (?,?,?,?,?)').run(id,actor.id,b.content.trim(),s.activePhase,Date.now());
+            transaction(db,()=>{
+              const s = getSession(id);
+              if (!['ACTIVE','PAUSED'].includes(s.status) || !s.activePhase) throw new ApiError(403,'QUESTIONS_CLOSED');
+              if (typeof b.content !== 'string' || b.content.trim().length < 5 || b.content.trim().length > 1000) throw new ApiError(400,'INVALID_QUESTION');
+              const quota=questionQuota(id,s.activePhase,actor.id);
+              if(!quota.personalRemaining)throw new ApiError(429,'QUESTION_PERSONAL_LIMIT');
+              if(!quota.remaining)throw new ApiError(429,'QUESTION_PHASE_LIMIT');
+              const last = db.prepare('SELECT created_at FROM live_questions WHERE session_id=? AND actor_id=? ORDER BY id DESC LIMIT 1').get(id,actor.id);
+              if (last && Date.now()-last.created_at < 5000) throw new ApiError(429,'RATE_LIMITED');
+              db.prepare('INSERT INTO live_questions(session_id,actor_id,content,phase,created_at) VALUES (?,?,?,?,?)').run(id,actor.id,b.content.trim(),s.activePhase,Date.now());
+            });
           }
-          emit(id,'question.updated',c => c.actor.role === 'PRESENTER' || c.actor.id === actor.id || (actor.role === 'PRESENTER' && c.actor.role === 'PARTICIPANT'));
+          // El contador llega a todos; cada participante recibe solo sus propias preguntas.
+          emit(id,'question.updated',c => ['PRESENTER','PARTICIPANT'].includes(c.actor.role));
           return json(res,200,state(id,actor));
         }
         if (route === 'state' && req.method === 'GET') return json(res, 200, state(id, actor));
@@ -420,6 +462,7 @@ export function createApp(options = {}) {
               if(!row)throw new ApiError(404,'TEAM_NOT_FOUND');
               const count=db.prepare("SELECT COUNT(*) n FROM identities WHERE team_id=? AND role='PARTICIPANT'").get(b.teamId).n;
               next={...reviewSnapshot(JSON.parse(row.data),s.activePhase,count),visible:true,version:old.version+1};
+              hideQuestionProjection(id);
             }else if(b.action==='PAGE'){
               if(!old.visible||!Number.isInteger(b.page)||b.page<0||b.page>=old.pages.length)throw new ApiError(400,'INVALID_REVIEW_PAGE');
               next={...old,page:b.page,version:old.version+1};
@@ -438,6 +481,8 @@ export function createApp(options = {}) {
           const result = transaction(db, () => {
             const removeMember = memberId => {
               db.prepare('DELETE FROM tokens WHERE identity_id=?').run(memberId);
+              const selected=questionProjection(id);
+              if(selected.visible && db.prepare('SELECT id FROM live_questions WHERE id=? AND actor_id=?').get(selected.id,memberId))hideQuestionProjection(id);
               db.prepare('DELETE FROM live_questions WHERE actor_id=?').run(memberId);
               db.prepare('DELETE FROM participant_notes WHERE identity_id=?').run(memberId);
               db.prepare('DELETE FROM participant_profiles WHERE identity_id=?').run(memberId);
@@ -515,6 +560,7 @@ export function createApp(options = {}) {
               if (b.action === 'HIDE') { if (row.response) throw new ApiError(409, 'INCIDENT_HAS_RESPONSE'); setStatus('assigned'); }
               if (b.action === 'RESOLVE') { if (row.status === 'assigned') throw new ApiError(409, 'INCIDENT_NOT_REVEALED'); setStatus('resolved', 'resolved_at'); }
               if (b.action === 'SHARE') {
+                hideQuestionProjection(id);
                 if (row.status === 'assigned') throw new ApiError(409, 'INCIDENT_NOT_REVEALED');
                 db.prepare('UPDATE incident_assignments SET shared_at=? WHERE session_id=? AND team_id=? AND code=?').run(Date.now(), id, b.teamId, b.code);
                 saveShare(id, { visible: true, teamId: b.teamId, code: b.code, learning: false, version: share.version + 1 });
@@ -562,7 +608,7 @@ export function createApp(options = {}) {
           const participants = db.prepare("SELECT id FROM identities WHERE session_id=? AND role='PARTICIPANT'").all(id).map(r => r.id);
           const result = transaction(db, () => {
             const old = getSession(id);
-            for (const table of ['live_questions', 'participant_notes', 'participant_profiles']) db.prepare(`DELETE FROM ${table} WHERE session_id=?`).run(id);
+            for (const table of ['question_projections', 'live_questions', 'participant_notes', 'participant_profiles']) db.prepare(`DELETE FROM ${table} WHERE session_id=?`).run(id);
             db.prepare("DELETE FROM tokens WHERE identity_id IN (SELECT id FROM identities WHERE session_id=? AND role='PARTICIPANT')").run(id);
             db.prepare("DELETE FROM identities WHERE session_id=? AND role='PARTICIPANT'").run(id);
             for (const table of ['incident_assignments', 'incident_shares', 'team_names', 'team_reviews', 'idempotency', 'events', 'phase_actions']) db.prepare(`DELETE FROM ${table} WHERE session_id=?`).run(id);
@@ -626,6 +672,7 @@ export function createApp(options = {}) {
               }
             }
             if(['START','ADVANCE','REOPEN','ITERATE','FINISH'].includes(b.action)){
+              hideQuestionProjection(id);
               const review=teamReview(id);
               db.prepare('INSERT INTO team_reviews VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET data=excluded.data').run(id,JSON.stringify({visible:false,version:review.version+1}));
             }

@@ -235,3 +235,6 @@ body[data-view=participant] .offline-retry{display:block;width:100%;margin-top:1
 body[data-view=participant] .deliverable-status .ui-icon{width:21px;height:21px;margin-right:8px}
 body[data-view=participant] .deliverable-status.status-draft{color:#ffdf91;background:#5b421d66;border:1px solid #d7a85088}
 @media(prefers-reduced-motion:reduce){.team-delivery-title>.ui-icon{transition:none}}
+.question-quota{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #45d9e866;border-radius:12px;background:#19849022;color:#b8eef5;font-size:14px;line-height:1.5}
+.question-quota .ui-icon{flex-shrink:0;width:22px;height:22px;margin-top:2px}
+.question-quota.is-full{border-color:var(--glass-border);background:#ffffff08;color:var(--muted)}

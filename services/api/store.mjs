@@ -17,7 +17,9 @@ export function openStore(path) {
     CREATE TABLE IF NOT EXISTS idempotency(session_id TEXT NOT NULL, actor_id TEXT NOT NULL, key TEXT NOT NULL, request TEXT NOT NULL, response TEXT NOT NULL, PRIMARY KEY(session_id,actor_id,key));
     CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, session_id TEXT NOT NULL, type TEXT NOT NULL, version INTEGER NOT NULL, timestamp INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS team_names(session_id TEXT NOT NULL REFERENCES sessions(id), name_key TEXT NOT NULL, team_id TEXT NOT NULL REFERENCES teams(id), PRIMARY KEY(session_id,name_key));
+    CREATE TABLE IF NOT EXISTS question_projections(session_id TEXT PRIMARY KEY REFERENCES sessions(id), data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS live_questions(id INTEGER PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), actor_id TEXT NOT NULL, content TEXT NOT NULL, phase INTEGER, created_at INTEGER NOT NULL, answered INTEGER NOT NULL DEFAULT 0);
+    CREATE INDEX IF NOT EXISTS live_questions_phase ON live_questions(session_id,phase,actor_id);
     CREATE INDEX IF NOT EXISTS live_questions_session ON live_questions(session_id,id DESC);
     CREATE TABLE IF NOT EXISTS participant_notes(identity_id TEXT PRIMARY KEY REFERENCES identities(id), session_id TEXT NOT NULL REFERENCES sessions(id), content TEXT NOT NULL, version INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS participant_profiles(identity_id TEXT PRIMARY KEY REFERENCES identities(id), session_id TEXT NOT NULL REFERENCES sessions(id), team_id TEXT NOT NULL REFERENCES teams(id), full_name TEXT NOT NULL, email TEXT, team_role TEXT, UNIQUE(session_id,email), UNIQUE(team_id,team_role));

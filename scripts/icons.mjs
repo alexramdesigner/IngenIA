@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 const selection = {
+  soundOn: 'regular/speaker-high', soundOff: 'regular/speaker-slash',
   phone: 'fill/device-mobile-fill', qr: 'fill/qr-code-fill', slides: 'fill/presentation-fill',
   product: 'duotone/clipboard-text-duotone', techlead: 'duotone/cpu-duotone', aideveloper: 'duotone/robot-duotone',
   qa: 'duotone/shield-check-duotone', security: 'duotone/shield-checkered-duotone', devops: 'duotone/gear-six-duotone',
