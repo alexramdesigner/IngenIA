@@ -1,3 +1,4 @@
+import { WORKSHOP_SESSION, WORKSHOP_DATE, WORKSHOP_TIME } from '/packages/shared/workshop-session.mjs';
 import { createNotifier } from '/packages/ui/notifications.mjs';
 import { mountPrototypePreview } from '/packages/ui/prototype-preview.mjs';
 import { requestId } from '/packages/shared/request-id.mjs';
@@ -42,7 +43,7 @@ function navigateParticipant(destination) {
 document.addEventListener('keydown', event => { if (view === 'presenter' && event.key === 'Escape' && studioMenuOpen) { setStudioMenu(false); document.querySelector('#studio-menu')?.focus(); } });
 for (const type of ['pwa:installable','pwa:installed']) document.addEventListener(type, () => { if (view === 'participant' && current && participantTab === 'profile') render(current); });
 document.addEventListener('participant:navigate', event => { if(view === 'participant') navigateParticipant(event.detail); });
-const errors = { QUESTION_PERSONAL_LIMIT:'Ya enviaste tu pregunta de esta fase. Podrás preguntar de nuevo en la siguiente.', QUESTION_PHASE_LIMIT:'Se alcanzó el máximo de 5 preguntas en esta fase. Podrás preguntar en la siguiente.', QUESTION_NOT_FOUND:'La pregunta ya no está disponible.', QUESTION_PROJECTION_CONFLICT:'La proyección cambió desde otro Studio. Revisa el estado e inténtalo de nuevo.', PREREQUISITE_ALREADY_SENT:'Tu equipo ya envió esta entrega. La pantalla se actualizará.', INVALID_QUESTION:'Escribe una pregunta de 5 a 1000 caracteres.', QUESTIONS_CLOSED:'Las preguntas se habilitan durante el taller.', REVIEW_VERSION_CONFLICT:'La revisión cambió desde otro Studio. Revisa la selección e inténtalo de nuevo.', REVIEW_PRACTICE_REQUIRED:'Habilita la práctica antes de proyectar un equipo.', TEAM_WORK_REQUIRED:'Este equipo todavía no ha guardado su trabajo de esta fase.', TEAM_NOT_FOUND:'El equipo no pertenece a este horario.', MEMBER_NOT_FOUND:'Este integrante ya no está registrado.', PHASE_NOTE_VERSION_CONFLICT:'Estas notas cambiaron en otro Studio. Tu borrador se conserva; recarga las notas guardadas antes de reemplazarlas.', INVALID_PHASE_NOTE:'Las notas de cada fase admiten hasta 6000 caracteres.', INVALID_TRANSITION:'Esta acción no está disponible en el momento actual.', IDENTITY_REQUIRED: 'Escribe tu nombre completo y un correo válido.', TEAM_CHANGE_NOT_ALLOWED: 'Ya estás registrado en otro equipo de este horario. Ingresa con el nombre de tu equipo original.', IDENTITY_MISMATCH: 'Este navegador pertenece a otro participante. Usa otro perfil para registrar a otra persona.', NOTES_READ_ONLY: 'Las notas están en lectura mientras la sesión está pausada o finalizada.', NOTE_VERSION_CONFLICT: 'Las notas cambiaron en otra pestaña. Copia tu borrador y recarga antes de guardar.', INVALID_NOTE: 'Las notas admiten hasta 3000 caracteres.', PHASE_LOCKED: 'Esta acción está bloqueada. Espera la fase indicada por el conferencista.', VERSION_CONFLICT: 'La sesión cambió. Revisa el estado actualizado y vuelve a intentarlo.', INVALID_CREDENTIALS: 'Credenciales incorrectas o enlace expirado.', INVALID_JOIN: 'Revisa el horario y el nombre del equipo.', TEAM_FULL: 'Este equipo ya tiene seis integrantes. Elige otro equipo o crea uno nuevo.', TEAM_SELECTION_CHANGED: 'El nombre cambió. Selecciona de nuevo el equipo sugerido.', ALREADY_IN_TEAM: 'Ya perteneces a otro equipo de esta sala. Conserva tu acceso actual.', INCOMPLETE_TEAMS: 'Hay equipos con entregas pendientes. Confirma antes de avanzar.', PROMPT_LENGTH: 'El prompt necesita entre 20 y 6000 caracteres.', DELIVERABLE_INVALID: 'Revisa la entrega: falta información o un campo es muy corto.', DISCOVERY_REQUIRED: 'Faltan datos de Descubrimiento. Complétalos en esta pantalla antes de generar.', SPECIFICATION_REQUIRED: 'Faltan datos de Especificación (fase 2). Abre «Completar y enviar Especificación» junto al prompt para corregirlos y continuar.', ARCHITECTURE_REQUIRED: 'Faltan datos de Arquitectura. Complétalos en esta pantalla antes de generar.', CONSTRUCTION_REQUIRED: 'Primero envíen la revisión de Construcción con IA.', VERIFICATION_REQUIRED: 'Primero envíen el hallazgo de Verificación.', PROTOTYPE_REQUIRED: 'Generen una versión del prototipo en esta iteración antes de revisarla.', INCIDENT_NOT_FOUND: 'El incidente no está asignado a este equipo.', INCIDENT_ALREADY_ASSIGNED: 'Ese incidente ya está asignado al equipo.', INCIDENT_PHASE_TAKEN: 'El equipo ya tiene un incidente en esta fase. Quítalo antes de asignar otro.', INCIDENT_PHASE_MISMATCH: 'Solo se puede revelar o compartir durante la fase del incidente.', INCIDENT_HAS_RESPONSE: 'El equipo ya respondió; no se puede ocultar.', INCIDENT_NOT_REVEALED: 'Primero revela el incidente al equipo.', INCIDENT_SHARE_CONFLICT: 'La intervención cambió desde otro Studio. Revisa el estado e inténtalo de nuevo.', INCIDENT_NOT_SHARED: 'No hay un incidente en pantalla.', INCIDENT_CLOSED: 'Este incidente ya se cerró.', RESET_DISABLED: 'El reinicio está bloqueado en este servidor (ALLOW_SESSION_RESET=false).', RESET_CONFIRMATION_REQUIRED: 'Escribe la frase de confirmación exactamente como aparece.', RESET_SESSION_ACTIVE: 'La sesión está en vivo: pausa o finaliza antes de reiniciar.', INCIDENT_RESPONSE_INVALID: 'Elige una opción y justifica la decisión (mínimo 10 caracteres).', RATE_LIMITED: 'Demasiados intentos. Espera un minuto.', ITERATION_LIMIT: 'Se alcanzó el límite de esta iteración.', UNAUTHENTICATED: 'La sesión de acceso expiró. Vuelve a ingresar.' };
+const errors = { QUESTION_PERSONAL_LIMIT:'Ya enviaste tu pregunta de esta fase. Podrás preguntar de nuevo en la siguiente.', QUESTION_PHASE_LIMIT:'Se alcanzó el máximo de 5 preguntas en esta fase. Podrás preguntar en la siguiente.', QUESTION_NOT_FOUND:'La pregunta ya no está disponible.', QUESTION_PROJECTION_CONFLICT:'La proyección cambió desde otro Studio. Revisa el estado e inténtalo de nuevo.', PREREQUISITE_ALREADY_SENT:'Tu equipo ya envió esta entrega. La pantalla se actualizará.', INVALID_QUESTION:'Escribe una pregunta de 5 a 1000 caracteres.', QUESTIONS_CLOSED:'Las preguntas se habilitan durante el taller.', REVIEW_VERSION_CONFLICT:'La revisión cambió desde otro Studio. Revisa la selección e inténtalo de nuevo.', REVIEW_PRACTICE_REQUIRED:'Habilita la práctica antes de proyectar un equipo.', TEAM_WORK_REQUIRED:'Este equipo todavía no ha guardado su trabajo de esta fase.', TEAM_NOT_FOUND:'El equipo no pertenece a este horario.', MEMBER_NOT_FOUND:'Este integrante ya no está registrado.', PHASE_NOTE_VERSION_CONFLICT:'Estas notas cambiaron en otro Studio. Tu borrador se conserva; recarga las notas guardadas antes de reemplazarlas.', INVALID_PHASE_NOTE:'Las notas de cada fase admiten hasta 6000 caracteres.', INVALID_TRANSITION:'Esta acción no está disponible en el momento actual.', REGISTRATION_ALREADY_EXISTS: 'Ya existe un registro para ese correo. Usa tu navegador original o contacta al conferencista.', IDENTITY_REQUIRED: 'Escribe tu nombre completo y un correo válido.', TEAM_CHANGE_NOT_ALLOWED: 'Ya estás registrado en otro equipo de este horario. Ingresa con el nombre de tu equipo original.', IDENTITY_MISMATCH: 'Este navegador pertenece a otro participante. Usa otro perfil para registrar a otra persona.', NOTES_READ_ONLY: 'Las notas están en lectura mientras la sesión está pausada o finalizada.', NOTE_VERSION_CONFLICT: 'Las notas cambiaron en otra pestaña. Copia tu borrador y recarga antes de guardar.', INVALID_NOTE: 'Las notas admiten hasta 3000 caracteres.', PHASE_LOCKED: 'Esta acción está bloqueada. Espera la fase indicada por el conferencista.', VERSION_CONFLICT: 'La sesión cambió. Revisa el estado actualizado y vuelve a intentarlo.', INVALID_CREDENTIALS: 'Credenciales incorrectas o enlace expirado.', INVALID_JOIN: 'Revisa el nombre del equipo e inténtalo de nuevo.', TEAM_FULL: 'Este equipo ya tiene seis integrantes. Elige otro equipo o crea uno nuevo.', TEAM_SELECTION_CHANGED: 'El nombre cambió. Selecciona de nuevo el equipo sugerido.', ALREADY_IN_TEAM: 'Ya perteneces a otro equipo de esta sala. Conserva tu acceso actual.', INCOMPLETE_TEAMS: 'Hay equipos con entregas pendientes. Confirma antes de avanzar.', PROMPT_LENGTH: 'El prompt necesita entre 20 y 6000 caracteres.', DELIVERABLE_INVALID: 'Revisa la entrega: falta información o un campo es muy corto.', DISCOVERY_REQUIRED: 'Faltan datos de Descubrimiento. Complétalos en esta pantalla antes de generar.', SPECIFICATION_REQUIRED: 'Faltan datos de Especificación (fase 2). Abre «Completar y enviar Especificación» junto al prompt para corregirlos y continuar.', ARCHITECTURE_REQUIRED: 'Faltan datos de Arquitectura. Complétalos en esta pantalla antes de generar.', CONSTRUCTION_REQUIRED: 'Primero envíen la revisión de Construcción con IA.', VERIFICATION_REQUIRED: 'Primero envíen el hallazgo de Verificación.', PROTOTYPE_REQUIRED: 'Generen una versión del prototipo en esta iteración antes de revisarla.', INCIDENT_NOT_FOUND: 'El incidente no está asignado a este equipo.', INCIDENT_ALREADY_ASSIGNED: 'Ese incidente ya está asignado al equipo.', INCIDENT_PHASE_TAKEN: 'El equipo ya tiene un incidente en esta fase. Quítalo antes de asignar otro.', INCIDENT_PHASE_MISMATCH: 'Solo se puede revelar o compartir durante la fase del incidente.', INCIDENT_HAS_RESPONSE: 'El equipo ya respondió; no se puede ocultar.', INCIDENT_NOT_REVEALED: 'Primero revela el incidente al equipo.', INCIDENT_SHARE_CONFLICT: 'La intervención cambió desde otro Studio. Revisa el estado e inténtalo de nuevo.', INCIDENT_NOT_SHARED: 'No hay un incidente en pantalla.', INCIDENT_CLOSED: 'Este incidente ya se cerró.', RESET_DISABLED: 'El reinicio está bloqueado en este servidor (ALLOW_SESSION_RESET=false).', RESET_CONFIRMATION_REQUIRED: 'Escribe la frase de confirmación exactamente como aparece.', RESET_SESSION_ACTIVE: 'La sesión está en vivo: pausa o finaliza antes de reiniciar.', INCIDENT_RESPONSE_INVALID: 'Elige una opción y justifica la decisión (mínimo 10 caracteres).', RATE_LIMITED: 'Demasiados intentos. Espera un minuto.', ITERATION_LIMIT: 'Se alcanzó el límite de esta iteración.', UNAUTHENTICATED: 'La sesión de acceso expiró. Vuelve a ingresar.' };
 async function api(path, data) {
   const res = await fetch(({ presenter: '/api/studio', projector: '/api/projection', participant: '/api' })[view] + path, { method: data ? 'POST' : 'GET', headers: data ? { 'Content-Type': 'application/json' } : {}, body: data ? JSON.stringify(data) : undefined });
   const result = await res.json();
@@ -58,12 +59,11 @@ function participantLogin() {
       <label class="join-field"><span class="field-icon">${icon('email')}</span><span class="field-content"><span class="field-label">Correo electrónico</span><input name="email" type="email" required maxlength="254" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="tu@ucundinamarca.edu.co"></span></label>
       <label class="join-field"><span class="field-icon">${joinIcon('person')}</span><span class="field-content"><span class="field-label">Nombre de tu equipo</span><input name="name" required maxlength="60" autocomplete="off" placeholder="Ej. Los Innovadores" aria-describedby="team-hint team-search-status" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="team-suggestions"></span></label>
       <input type="hidden" name="teamId" value=""><ul id="team-suggestions" role="listbox" aria-label="Equipos de tu sala" hidden></ul><p id="team-search-status" class="join-hint" role="status"></p>
-      <h2>Selecciona tu sesión</h2>
-      <label class="session-select"><span class="field-icon">${joinIcon('calendar')}</span><span class="sr-only">Horario del taller, hora Colombia</span><select name="sessionId" required><option value="" disabled selected>Elige un horario</option><option value="tarde">2:00–4:00 p. m.</option><option value="noche">6:00–8:00 p. m.</option></select></label>
+      <input type="hidden" name="sessionId" value="${WORKSHOP_SESSION.id}">
       <label class="demo-accept"><input type="checkbox" required><span>Entiendo que participaré en un taller de simulación educativa.</span></label>
     </section>
     <button class="join-submit" type="submit">Unirme al taller ${icon('forward')}</button>
-    <p class="join-caption">18 de noviembre de 2026 · Extensión Chía</p>
+    <p class="join-caption">${WORKSHOP_DATE} · ${WORKSHOP_TIME} · Sesión virtual</p>
   </form>`;
 }
 function bindTeamSearch() {
@@ -97,8 +97,7 @@ function bindTeamSearch() {
     } catch(error) { if (revision === version) status.textContent = error.message; }
   }
   function schedule() { revision++; selected.value=''; clear(); clearTimeout(timer); timer=setTimeout(()=>search(revision),250); }
-  for (const field of [name,session]) field.addEventListener('input',schedule);
-  session.addEventListener('change',schedule);
+  name.addEventListener('input',schedule);
   name.addEventListener('focus',()=>{ if (!selected.value) schedule(); });
   list.addEventListener('click',event=>{ const button=event.target.closest('[data-index]'); if(button) choose(Number(button.dataset.index)); });
   name.addEventListener('keydown',event=>{
@@ -123,8 +122,8 @@ function login() {
   setConnection('Sin conectar');
   if (view === 'presenter') { document.body.dataset.screen = 'login'; studioMenuOpen = false; studioEvents = []; }
   if (view === 'participant') { document.body.dataset.screen = 'login'; participantTab = 'activities'; document.dispatchEvent(new CustomEvent('participant:screen',{detail:'login'})); }
-  const form = view === 'presenter' ? `<label>Grupo<select name="sessionId"><option value="tarde">14:00–16:00 · Colombia</option><option value="noche">18:00–20:00 · Colombia</option></select></label><label>Contraseña del conferencista<input name="password" type="password" autocomplete="current-password" required minlength="12"></label>` : `<label>Código de sala<input name="code" autocomplete="off" required maxlength="40"></label><label>Nombre o seudónimo del equipo<input name="name" required maxlength="60" autocomplete="off"></label><p class="muted">Hasta seis integrantes por equipo. Conserva este navegador para recuperar tu acceso.</p>`;
-  app.innerHTML = `<h1>${view === 'presenter' ? 'Control Center' : view === 'projector' ? 'Pantalla de auditorio' : 'Tu primera app empieza con una idea.'}</h1><p>Un taller, seis fases AI-DSE. El conferencista marca el ritmo.</p><section class="card">${view === 'projector' ? '<p>Abre aquí el enlace privado generado desde Control Center, desde Studio.</p>' : `<form id="login">${form}<button>Ingresar</button></form>`}</section>`;
+  const form = view === 'presenter' ? `<p>${WORKSHOP_DATE} · ${WORKSHOP_TIME} · Sesión virtual</p><input type="hidden" name="sessionId" value="${WORKSHOP_SESSION.id}"><label>Contraseña del conferencista<input name="password" type="password" autocomplete="current-password" required minlength="12"></label>` : `<label>Código de sala<input name="code" autocomplete="off" required maxlength="40"></label><label>Nombre o seudónimo del equipo<input name="name" required maxlength="60" autocomplete="off"></label><p class="muted">Hasta seis integrantes por equipo. Conserva este navegador para recuperar tu acceso.</p>`;
+  app.innerHTML = `<h1>${view === 'presenter' ? 'Control Center' : view === 'projector' ? 'Pantalla de proyección' : 'Tu primera app empieza con una idea.'}</h1><p>Un taller, seis fases AI-DSE. El conferencista marca el ritmo.</p><section class="card">${view === 'projector' ? '<p>Abre la proyección desde Studio.</p>' : `<form id="login">${form}<button>Ingresar</button></form>`}</section>`;
   if (view === 'participant') { app.innerHTML = participantLogin(); bindTeamSearch(); }
   if (view === 'projector') app.innerHTML = projectorWelcome(null);
   app.querySelector('form')?.addEventListener('submit', async e => {
@@ -177,7 +176,7 @@ function participantScreen(s, workshop) {
   if (participantTab === 'home') return `<h1>Tu experiencia con IA</h1><section class="card"><h2>${esc(status)}</h2><p>${esc(phase?.mission ?? 'Prepara tu equipo. Las actividades se habilitan durante la explicación.')}</p><p>${esc(s.team.name)} · ${s.team.memberCount}/${s.team.maxMembers} integrantes</p><button data-go="activities">Ver actividades</button><button class="secondary" data-go="workshop">Ir al taller</button></section>`;
   if (participantTab === 'questions') return participantQuestions(s);
   if (participantTab === 'survey') return `<div class="student-page-title"><button class="student-back" data-go="activities" aria-label="Volver a Actividades">${icon('back')}</button><h1>Encuesta de satisfacción</h1></div><section class="card survey-card">${surveyOpen ? `<h2>Comparte tu experiencia</h2><p>Escanea el código QR o abre el enlace para responder la encuesta.</p><div class="survey-qr">${SURVEY_QR ? `<img src="${esc(SURVEY_QR)}" alt="Código QR de la encuesta de satisfacción" width="240" height="240">` : '<p class="muted">Código QR pendiente</p>'}</div><p class="survey-link">${SURVEY_URL ? `<a href="${esc(SURVEY_URL)}" target="_blank" rel="noopener">${esc(SURVEY_URL)}</a>` : '<span class="muted">Enlace pendiente</span>'}</p>` : '<h2>Disponible al final de la presentación</h2><p>El conferencista habilitará la encuesta al cerrar la presentación.</p>'}</section>`;
-  return `<h1>Mi perfil</h1><section class="card"><h2>${esc(s.profile?.fullName || s.team.name)}</h2><p>${esc(s.profile?.email ?? '')}</p><p>Mi rol: <strong>${esc(s.profile?.teamRole ?? 'Pendiente')}</strong></p><p>Equipo: ${esc(s.team.name)}</p><p>${s.team.memberCount}/${s.team.maxMembers} integrantes</p><p>${esc(s.title)}</p><p>Conserva este navegador para recuperar tu acceso. El progreso pertenece al equipo.</p><button class="secondary" id="logout">Cerrar acceso</button></section>${installCard()}`;
+  return `<h1>Mi perfil</h1><section class="card"><h2>${esc(s.profile?.fullName || s.team.name)}</h2><p>${esc(s.profile?.email ?? '')}</p><p>Mi rol: <strong>${esc(s.profile?.teamRole ?? 'Pendiente')}</strong></p><p>Equipo: ${esc(s.team.name)}</p><p>${s.team.memberCount}/${s.team.maxMembers} integrantes</p><p>${esc(s.title)}</p><p>Conserva el acceso abierto durante el taller. Si lo cierras, necesitarás ayuda del conferencista para volver.</p><button class="secondary" id="logout">Cerrar acceso</button></section>${installCard()}`;
 }
 function render(s) {
   if (view === 'participant') document.body.dataset.screen = 'activity';
@@ -288,11 +287,11 @@ function studioTeams(s) {
   return `<section class="studio-panel"><p class="panel-label">${phase ? `Fase ${phase.id} · ${esc(phase.title)}${iterationLabel(s)}` : 'Sesión sin iniciar'}</p><p>${phase ? `<strong>${s.summary.completed}/${s.summary.total}</strong> equipos entregaron en esta fase` : `${s.teams.length} equipos registrados`} · ${s.summary.participants} participantes · Código estadístico: <strong>${esc(s.statisticsCode)}</strong></p></section>
   <div class="team-grid">${teams.map(t => `<section class="studio-panel team-panel ${done(t)?'is-done':''}"><div class="team-head"><h2>${esc(t.name)}</h2><span class="badge team-members" title="Integrantes">${icon('teams')}${t.memberCount}/${t.maxMembers}</span><button class="admin-remove" data-remove-team="${esc(t.id)}" data-name="${esc(t.name)}" data-count="${t.memberCount}" title="Eliminar equipo" aria-label="Eliminar equipo ${esc(t.name)}" ${adminBusy||!online?'disabled':''}>${icon('trash')}</button></div>${phase?`<p class="team-phase-status">${done(t)?`${icon('check')}<span>${DELIVERABLE_STATUS[t.current?.status]} · ${esc(phase.title)}</span>`:`<span>${t.current?.status?DELIVERABLE_STATUS[t.current.status]:'Pendiente'} · ${esc(phase.title)}</span>`}</p>${t.current?.text?`<details class="team-deliverable"><summary>Ver entrega</summary><pre>${esc(t.current.text)}</pre>${t.current.review?.comment?`<p class="muted">Comentario: ${esc(t.current.review.comment)}</p>`:''}${['submitted','accepted','needs_review'].includes(t.current.status)?`<div class="actions"><button class="secondary" data-deliverable-review="ACCEPT" data-team="${esc(t.id)}" ${t.current.status==='accepted'||adminBusy||!online?'disabled':''}>Aceptar</button><button class="secondary" data-deliverable-review="REQUEST_CHANGES" data-team="${esc(t.id)}" ${t.current.status==='needs_review'||adminBusy||!online?'disabled':''}>Pedir revisión</button></div>`:''}</details>`:''}${t.legacy?'<p class="muted">Trabajo del modelo anterior pendiente de reconciliación.</p>':''}`:''}<ol class="team-progress" aria-label="Entregas por fase">${PHASES.map(p=>`<li class="${t.completed.includes(p.id)?'done':''} ${p.id===s.activePhase?'current':''}" title="${p.id}. ${esc(p.title)} · ${t.completed.includes(p.id)?'Entregada':'Pendiente'}">${p.id}</li>`).join('')}</ol><details><summary>Integrantes y roles</summary><ul class="member-list">${t.members.map(member=>`<li><div class="member-info"><strong>${esc(member.fullName || 'Pendiente de completar registro')}</strong><span>${esc(member.teamRole ?? 'Rol pendiente')}</span><small>${esc(member.email ?? '')}</small></div><button class="admin-remove" data-remove-member="${esc(member.id)}" data-name="${esc(member.fullName || 'Integrante sin registro completo')}" data-team="${esc(t.name)}" title="Quitar integrante" aria-label="Quitar a ${esc(member.fullName || 'integrante')} del equipo" ${adminBusy||!online?'disabled':''}>${icon('trash')}</button></li>`).join('')}</ul></details></section>`).join('') || '<section class="studio-panel"><p>Aún no hay equipos registrados.</p></section>'}</div>`;
 }
-// Bienvenida del auditorio antes de iniciar: registro guiado con QR a la URL de producción.
+// Bienvenida de la proyección antes de iniciar: registro guiado con QR a la URL de producción.
 function projectorWelcome(s) {
   const host = PRODUCTION_URL.replace(/^https?:\/\//, '');
-  const schedule = s ? `${esc(s.title)} · ${s.id === 'tarde' ? '2:00–4:00 p. m.' : '6:00–8:00 p. m.'}` : '18 de noviembre de 2026 · Extensión Chía';
-  const steps = [['qrline', 'Escanea el código o entra a', esc(host)], ['person', 'Escribe tu nombre completo', 'y <strong>tu correo electrónico</strong>'], ['teams', 'Únete a tu equipo o créalo:', '<strong>máximo seis integrantes</strong>'], ['monitor', 'Elige tu sesión y espera', '<strong>la señal del conferencista</strong>']];
+  const schedule = `Sesión virtual · ${WORKSHOP_DATE} · ${WORKSHOP_TIME}`;
+  const steps = [['qrline', 'Escanea el código o entra a', esc(host)], ['person', 'Escribe tu nombre completo', 'y <strong>tu correo electrónico</strong>'], ['teams', 'Únete a tu equipo o créalo:', '<strong>máximo seis integrantes</strong>'], ['monitor', 'Después de registrarte, espera', '<strong>la señal del conferencista</strong>']];
   return `<div class="pw-screen">
   <section class="pw-intro">
     <p class="pw-eyebrow">${icon('live')}<span>${schedule}</span></p>
@@ -306,7 +305,7 @@ function projectorWelcome(s) {
     <p class="pw-url">${esc(host)}</p>
     <p class="pw-caption">Abre la cámara y apunta al código</p>
   </aside>
-  ${s ? `<div class="pw-live"><span>${icon('teams')}<strong>${s.summary.participants}</strong> registrados</span><span>${icon('activities')}<strong>${s.summary.total}</strong> equipos</span><span>${icon('live')}<strong>${s.summary.online ?? 0}</strong> conectados ahora</span><span class="pw-wait">En un momento daremos inicio al taller</span></div>` : ''}
+  ${!s ? '<p class="pw-wait">Para mostrar el estado en vivo, abre la proyección desde Studio.</p>' : `<div class="pw-live"><span>${icon('teams')}<strong>${s.summary.participants}</strong> registrados</span><span>${icon('activities')}<strong>${s.summary.total}</strong> equipos</span><span>${icon('live')}<strong>${s.summary.online ?? 0}</strong> conectados ahora</span><span class="pw-wait">En un momento daremos inicio al taller</span></div>`}
 </div>`;
 }
 function projectorScreen(s) {
@@ -357,7 +356,7 @@ function studioIncidents(s) {
     <p class="muted">${esc(a.teamName)} · Fase ${a.phase} · ${a.origin === 'manual' ? 'Asignación manual' : 'Asignación automática'}</p>
     <details><summary>Detalle docente${a.response ? ' y respuesta del equipo' : ''}</summary><p>${esc(a.privateDescription)}</p>${a.response ? `<p><strong>Decisión del equipo:</strong> ${esc(a.choices.find(c => c.id === a.response.choice)?.text ?? '')}<br>${esc(a.response.justification)}</p>` : '<p class="muted">Sin respuesta todavía.</p>'}<p><strong>Esperado:</strong> ${esc(a.choices.find(c => c.id === a.feedback.expectedChoice)?.text ?? '')}. ${esc(a.feedback.expectedReasoning)}</p><p><strong>Aprendizaje:</strong> ${esc(a.feedback.learningPoint)} · Se previene en: ${esc(a.feedback.preventedIn.join(', '))}</p></details>
     <div class="actions">${a.status === 'assigned' ? `<button class="secondary" data-incident-action="REVEAL" data-team="${esc(a.teamId)}" data-code="${esc(a.code)}" ${a.phase === s.activePhase ? disabled : 'disabled'}>Revelar al equipo</button>` : ''}${a.status === 'revealed' ? `<button class="secondary" data-incident-action="HIDE" data-team="${esc(a.teamId)}" data-code="${esc(a.code)}" ${disabled}>Ocultar</button>` : ''}${['revealed','acknowledged'].includes(a.status) ? `<button class="secondary" data-incident-action="RESOLVE" data-team="${esc(a.teamId)}" data-code="${esc(a.code)}" ${disabled}>Marcar resuelto</button>` : ''}${a.status !== 'assigned' && a.phase === s.activePhase && !(share.visible && share.teamId === a.teamId && share.code === a.code) ? `<button data-incident-action="SHARE" data-team="${esc(a.teamId)}" data-code="${esc(a.code)}" ${disabled}>${icon('projector')}<span>Compartir con auditorio</span></button>` : ''}<button class="admin-remove" title="Quitar asignación" aria-label="Quitar ${esc(a.code)} de ${esc(a.teamName)}" data-incident-action="UNASSIGN" data-team="${esc(a.teamId)}" data-code="${esc(a.code)}" ${disabled}>${icon('trash')}</button></div></li>`;
-  return `${shared ? `<section class="studio-panel incident-live"><p class="panel-label">En el auditorio</p><h2>${esc(shared.code)} · ${esc(shared.title)}</h2><p>Comparte <strong>${esc(shared.teamName)}</strong>. Pregunta: ${esc(shared.discussionQuestion)}</p><div class="actions">${share.learning ? '' : `<button class="secondary" data-incident-share="LEARNING" ${disabled}>Mostrar aprendizaje</button>`}<button data-incident-share="END_SHARE" ${disabled}>Finalizar discusión</button></div></section>` : ''}
+  return `${shared ? `<section class="studio-panel incident-live"><p class="panel-label">En la proyección</p><h2>${esc(shared.code)} · ${esc(shared.title)}</h2><p>Comparte <strong>${esc(shared.teamName)}</strong>. Pregunta: ${esc(shared.discussionQuestion)}</p><div class="actions">${share.learning ? '' : `<button class="secondary" data-incident-share="LEARNING" ${disabled}>Mostrar aprendizaje</button>`}<button data-incident-share="END_SHARE" ${disabled}>Finalizar discusión</button></div></section>` : ''}
   <section class="studio-panel"><p class="panel-label">${s.activePhase ? `Fase ${s.activePhase} · ${esc(PHASES[s.activePhase - 1].title)}` : 'Sesión sin iniciar'}</p><p>Los incidentes se asignan de forma determinista al habilitar la práctica (máximo 2 por equipo y 1 crítico). Puedes revelarlos, anularlos o asignarlos manualmente.</p>
     ${s.activePhase && data.catalog.length && s.teams.length ? `<form id="incident-assign" class="incident-assign"><label>Equipo<select name="teamId">${s.teams.map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('')}</select></label><label>Incidente<select name="code">${data.catalog.map(c => `<option value="${esc(c.code)}">${esc(c.code)} · ${esc(c.title)} (${esc(c.severity)})</option>`).join('')}</select></label><button type="submit" class="secondary" ${disabled}>Asignar</button></form>` : ''}</section>
   <section class="studio-panel"><p class="panel-label">Incidentes de esta fase</p>${current.length ? `<ul class="incident-list">${current.map(row).join('')}</ul>` : '<p class="muted">Sin incidentes asignados en esta fase.</p>'}</section>
@@ -374,14 +373,14 @@ function studioMaintenance(s) {
     <h2>Dejar la sesión lista para empezar de nuevo</h2>
     <p>Úsalo después de un ensayo para que el día del evento la sesión arranque limpia. Antes de borrar se guarda una copia de seguridad de la base de datos en el servidor.</p>
     <div class="maintenance-columns"><div><h3>Se borra</h3><ul><li>Equipos y participantes (sus accesos se cierran)</li><li>Entregas, prototipos y notas personales</li><li>Incidentes, revisiones y eventos</li><li>Estado del taller: vuelve a «En espera»</li></ul></div>
-    <div><h3>Se conserva</h3><ul><li>Código y horario de la sesión</li><li>Tu acceso a Studio y la proyección</li><li>La otra sesión, sin cambios</li><li>Tus notas de explicación, si lo eliges</li></ul></div></div>
+    <div><h3>Se conserva</h3><ul><li>Código y horario de la sesión</li><li>Tu acceso a Studio y la proyección</li><li>Tus notas de explicación, si lo eliges</li></ul></div></div>
     ${live ? '<p class="maintenance-warning">La sesión está en vivo. Pausa o finaliza el taller antes de reiniciar.</p>' : ''}
     <form id="session-reset" class="maintenance-form"><label class="checkbox-line"><input type="checkbox" name="keepSpeakerNotes" checked> Conservar mis notas de explicación</label>
       <label>Para confirmar escribe <strong>${phrase}</strong><input name="confirmation" autocomplete="off" spellcheck="false" placeholder="${phrase}"></label>
       <button type="submit" class="danger-button" ${live || adminBusy || !online ? 'disabled' : ''}>${icon('trash')}<span>Reiniciar ${esc(s.title)}</span></button></form></section>`;
 }
 function studioProjection(s) {
-  return `<section class="studio-panel"><p class="panel-label">Pantalla de auditorio</p><h2>Proyección 16:9</h2><p>Abre la vista del auditorio en otra pestaña o pantalla. No muestra datos privados de los equipos.</p><p>${s.teamReview?.visible?`En pantalla: <strong>${esc(s.teamReview.teamName)}</strong> · Fase ${s.teamReview.phase}`:'En pantalla: vista general del taller.'}</p><button id="projector">${icon('projector')}<span>Abrir proyección 16:9</span></button><p id="projector-link"></p></section>`;
+  return `<section class="studio-panel"><p class="panel-label">Pantalla de proyección</p><h2>Proyección 16:9</h2><p>Abre la vista de proyección en otra pestaña o pantalla. No muestra datos privados de los equipos.</p><p>${s.teamReview?.visible?`En pantalla: <strong>${esc(s.teamReview.teamName)}</strong> · Fase ${s.teamReview.phase}`:'En pantalla: vista general del taller.'}</p><button id="projector">${icon('projector')}<span>Abrir proyección 16:9</span></button><p id="projector-link"></p></section>`;
 }
 function studioScreen(s) {
   const phase = PHASES.find(p => p.id === s.activePhase);
@@ -574,7 +573,7 @@ function bind() {
   }
   document.querySelectorAll('[data-incident-action]').forEach(button => button.addEventListener('click', () => {
     const { incidentAction: action, team: teamId, code } = button.dataset;
-    const question = { UNASSIGN: `¿Quitar el incidente ${code} de este equipo?`, SHARE: `¿Compartir ${code} con el auditorio? Se mostrará el nombre del equipo y una descripción genérica, sin su respuesta.` }[action];
+    const question = { UNASSIGN: `¿Quitar el incidente ${code} de este equipo?`, SHARE: `¿Compartir ${code} en la proyección? Se mostrará el nombre del equipo y una descripción genérica, sin su respuesta.` }[action];
     incidentCommand({ action, teamId, code, ...(action === 'SHARE' ? { expectedVersion: current.incidents.share.version } : {}) }, question);
   }));
   document.querySelectorAll('[data-incident-share]').forEach(button => button.addEventListener('click', () => incidentCommand({ action: button.dataset.incidentShare, expectedVersion: current.incidents.share.version })));
@@ -645,42 +644,39 @@ async function connect() {
   stream = new EventSource(`${({ presenter: '/api/studio', projector: '/api/projection', participant: '/api' })[view]}/sessions/${sessionId}/events`);
   stream.onopen = () => { online = true; setConnection('En vivo · Servidor conectado'); if(current) render(current); };
   const activeStream = stream;
+  let checkingAccess = false;
   stream.onerror = async () => {
-    if (activeStream !== stream) return;
+    if (activeStream !== stream || checkingAccess) return;
+    checkingAccess = true;
     online = false; setConnection('Reconectando… Acciones bloqueadas'); if(current) render(current);
-    try { const me = await api('/me'); if(activeStream === stream && me.sessionId !== sessionId) { activeStream.close(); login(); } }
-    catch(error) {
-      if(error.code === 'UNAUTHENTICATED' && activeStream === stream) {
-        if (view === 'projector') {
-          try {
-            await api('/auth/projector', { sessionId });
-            const me = await api('/me');
-            if (me.role === 'PROJECTOR' && me.sessionId === sessionId) { await connect(); return; }
-          } catch {}
-        }
-        activeStream.close(); login(); if(view !== 'projector') showNotice('Tu acceso anterior terminó. Ingresa de nuevo para continuar.', 'warning');
+    try {
+      let me = await api('/me').catch(error => {
+        if (view === 'participant' && error.code === 'UNAUTHENTICATED') return null;
+        throw error;
+      });
+      if (view === 'participant' && me?.role !== 'PARTICIPANT') {
+        me = await api('/auth/reconnect', {});
+        if (activeStream === stream && me.sessionId === sessionId) await connect();
       }
-    }
+      if (activeStream === stream && me.sessionId !== sessionId) login();
+    } catch (error) {
+      if (error.code === 'UNAUTHENTICATED' && activeStream === stream) {
+        login();
+        if (view === 'participant') showNotice('El acceso automático terminó. Contacta al conferencista si ya estabas registrado.', 'warning');
+        else if (view !== 'projector') showNotice('Tu acceso anterior terminó. Ingresa de nuevo para continuar.', 'warning');
+      }
+    } finally { checkingAccess = false; }
   };
   for (const type of ['state','session.started','phase.closed','phase.opened','session.paused','session.resumed','session.finished','timer.updated','team.progress','phase.practice','presenter.notes.updated','team.review.updated','presence.updated','phase.reflection','phase.completed','incident.updated','question.updated','question.projection.updated']) stream.addEventListener(type, e => { online = true; setConnection('En vivo · Servidor conectado'); const next = JSON.parse(e.data); notifyQuestion(next); recordStudioEvent(type, next); render(next); });
 }
 async function boot() {
   try {
-    if (view === 'projector') {
-      if (location.hash) {
-        const token = location.hash.slice(1);
-        history.replaceState(null, '', location.pathname + location.search);
-        await api('/auth/projector', { token });
-      } else {
-        let me = null;
-        try { me = await api('/me'); } catch {}
-        const targetSession = new URLSearchParams(location.search).get('session');
-        if (!me || me.role !== 'PROJECTOR' || (targetSession && me.sessionId !== targetSession)) {
-          await api('/auth/projector', { sessionId: targetSession || 'tarde' });
-        }
-      }
+    if (view === 'projector' && location.hash) {
+      const token = location.hash.slice(1);
+      history.replaceState(null, '', location.pathname + location.search);
+      await api('/auth/projector', { token });
     }
-    const me = await api('/me');
+    const me = await (view === 'participant' ? api('/auth/reconnect', {}) : api('/me'));
     const expected = { participant:'PARTICIPANT', presenter:'PRESENTER', projector:'PROJECTOR' }[view];
     if (me.role !== expected) { login(); if (view !== 'participant') showNotice('Usa otro perfil o cierra el acceso actual para cambiar de rol.', 'warning'); return; }
     if(view === 'participant') {

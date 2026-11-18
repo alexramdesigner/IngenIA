@@ -12,6 +12,7 @@ import { TEAM_ROLES } from '../../packages/shared/team-roles.mjs';
 import { MAX_TEAM_MEMBERS, teamName, teamKey } from '../../packages/shared/teams.mjs';
 import { ACTION_PHASE, PHASE_COUNT } from '../../packages/shared/phases.mjs';
 import { isDelivered } from '../../packages/shared/projects.mjs';
+import { WORKSHOP_SESSION } from '../../packages/shared/workshop-session.mjs';
 const delivered = project => Object.keys(project?.deliverables ?? {}).map(Number).filter(phase => isDelivered(project.deliverables[phase])).sort((a, b) => a - b);
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -20,16 +21,19 @@ export function createApp(options = {}) {
   const password = options.password ?? process.env.PRESENTER_PASSWORD;
   if (!password || password.length < 12) throw new Error('Ejecuta npm run setup: PRESENTER_PASSWORD requiere al menos 12 caracteres.');
   const databasePath = options.database ?? process.env.DATABASE_PATH ?? './data/ingenia.sqlite';
-  const db = openStore(databasePath);
+  const additionalSessions = options.additionalSessions ?? [];
+  const activeSessions = new Set([WORKSHOP_SESSION.id, ...additionalSessions.map(session => session.id)]);
+  const db = openStore(databasePath, additionalSessions);
   // Reinicio de sesión desde Studio para ensayos; ALLOW_SESSION_RESET=false lo bloquea el día del evento.
   const resetAllowed = String(options.allowSessionReset ?? process.env.ALLOW_SESSION_RESET ?? 'true') !== 'false';
   const ttl = Number(process.env.TOKEN_TTL_SECONDS ?? 28800) * 1000;
   if (!Number.isFinite(ttl) || ttl < 60000 || ttl > 86400000) throw new Error('TOKEN_TTL_SECONDS debe estar entre 60 y 86400.');
   const secure = process.env.COOKIE_SECURE === 'true';
   const clients = new Set();
+  const maxPendingStreamBytes = 2 * 1024 * 1024;
   const rates = new Map();
   const limit = (name, fallback) => { const value = Number(options.rateLimits?.[name] ?? process.env[`RATE_LIMIT_${name.toUpperCase()}_PER_MIN`] ?? fallback); return Number.isFinite(value) && value > 0 ? value : fallback; };
-  const limits = { ip: limit('ip', 6000), client: limit('client', 600), credentials: limit('credentials', 20) };
+  const limits = { ip: limit('ip', 9000), client: limit('client', 600), credentials: limit('credentials', 20) };
   const trustProxy = (options.trustProxy ?? process.env.TRUST_PROXY) === true || process.env.TRUST_PROXY === 'true';
   // Detrás de un proxy de confianza la IP real llega en X-Forwarded-For; nunca se confía en ella sin TRUST_PROXY.
   const clientIp = req => (trustProxy && req.headers['x-forwarded-for']?.split(',')[0].trim()) || req.socket.remoteAddress;
@@ -53,7 +57,7 @@ export function createApp(options = {}) {
       // Compatibilidad con clientes previos: el formulario actual solo envía sessionId.
       row = db.prepare('SELECT id,join_code,statistics_code FROM sessions WHERE join_code=?').get(body.code.trim().toUpperCase());
     }
-    if (!row || (body.code !== undefined && (!text(body.code,40) || body.code.trim().toUpperCase() !== row.join_code))) throw new ApiError(400,'INVALID_JOIN');
+    if (!row || !activeSessions.has(row.id) || (body.code !== undefined && (!text(body.code,40) || body.code.trim().toUpperCase() !== row.join_code))) throw new ApiError(400,'INVALID_JOIN');
     return row;
   }
   function tokenFor(req) {
@@ -64,7 +68,7 @@ export function createApp(options = {}) {
       const token = cookies[name];
       if (!token) continue;
       const actor = db.prepare('SELECT i.* FROM tokens t JOIN identities i ON i.id=t.identity_id WHERE t.hash=? AND t.expires>?').get(hash(token), Date.now());
-      if (actor && (!context || actor.role === context)) return { token, actor, name };
+      if (actor && activeSessions.has(actor.session_id) && (!context || actor.role === context)) return { token, actor, name };
     }
     throw new ApiError(401, 'UNAUTHENTICATED');
   }
@@ -166,6 +170,13 @@ export function createApp(options = {}) {
     }
     return result;
   }
+  const recoverySeconds = 3 * 60 * 60;
+  const recoveryCookie = (token, seconds) => `ingenia_recovery=${token}; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=${seconds}${secure ? '; Secure' : ''}`;
+  function prepareRecovery(identityId) {
+    const secret = randomBytes(32).toString('base64url');
+    const result = db.prepare('INSERT OR IGNORE INTO participant_recovery VALUES (?,?,?)').run(identityId, hash(secret), Date.now() + recoverySeconds * 1000);
+    return result.changes ? recoveryCookie(secret, recoverySeconds) : null;
+  }
   const cookie = (token, name) => `${name}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${Math.floor(ttl / 1000)}${secure ? '; Secure' : ''}`;
   function issue(res, identity) {
     const token = randomBytes(32).toString('base64url');
@@ -182,6 +193,7 @@ export function createApp(options = {}) {
     const wants = typeof audience === 'function' ? audience : c => !audience || c.actor.role === audience;
     for (const c of clients) if (c.actor.session_id === id && wants(c)) {
       if (c.expires <= Date.now()) { c.res.end(); clients.delete(c); continue; }
+      if (c.res.writableLength > maxPendingStreamBytes) { c.res.destroy(); continue; }
       try { c.res.write(`event: ${type}\ndata: ${JSON.stringify(state(id, c.actor, snap))}\n\n`); }
       catch { c.res.end(); clients.delete(c); }
     }
@@ -237,7 +249,7 @@ export function createApp(options = {}) {
       if (path === '/api/auth/presenter' && req.method === 'POST') {
         const b = await body(req);
         if (typeof b.password !== 'string' || !timingSafeEqual(Buffer.from(hash(b.password)), Buffer.from(hash(password)))) throw new ApiError(401, 'INVALID_CREDENTIALS');
-        getSession(b.sessionId);
+        if (!activeSessions.has(b.sessionId)) throw new ApiError(404, 'SESSION_NOT_FOUND');
         const identity = { id: randomUUID(), session_id: b.sessionId, role: 'PRESENTER' };
         db.prepare('INSERT INTO identities VALUES (?,?,?,NULL)').run(identity.id, identity.session_id, identity.role);
         issue(res, identity); return json(res, 200, { sessionId: identity.session_id });
@@ -257,7 +269,7 @@ export function createApp(options = {}) {
           JOIN teams t ON t.id=n.team_id JOIN sessions s ON s.id=n.session_id LEFT JOIN identities i ON i.team_id=t.id AND i.role='PARTICIPANT'
           WHERE (? IS NULL OR n.session_id=?) AND json_extract(s.data,'$.status')!='FINISHED'
           GROUP BY t.id,n.name_key ORDER BY t.name,n.session_id`).all(sessionId,sessionId);
-        const teams = rows.filter(t=>t.name_key.includes(query)).sort((a,b)=>Number(b.name_key.startsWith(query))-Number(a.name_key.startsWith(query))).slice(0,8).map(({id,name,sessionId,sessionData,memberCount})=>({id,name,sessionId,sessionTitle:JSON.parse(sessionData).title,memberCount,full:memberCount>=MAX_TEAM_MEMBERS}));
+        const teams = rows.filter(t=>activeSessions.has(t.sessionId) && t.name_key.includes(query)).sort((a,b)=>Number(b.name_key.startsWith(query))-Number(a.name_key.startsWith(query))).slice(0,8).map(({id,name,sessionId,sessionData,memberCount})=>({id,name,sessionId,sessionTitle:JSON.parse(sessionData).title,memberCount,full:memberCount>=MAX_TEAM_MEMBERS}));
         return json(res,200,{teams,maxMembers:MAX_TEAM_MEMBERS});
       }
       if (path === '/api/auth/join' && req.method === 'POST') {
@@ -274,10 +286,13 @@ export function createApp(options = {}) {
             db.prepare('DELETE FROM tokens WHERE identity_id=?').run(result.id);
             if(existingActor?.role === 'PARTICIPANT' && existingActor.id !== result.id) db.prepare('DELETE FROM tokens WHERE identity_id=?').run(existingActor.id);
             issue(res,{id:result.id});
+            const recovery = prepareRecovery(result.id);
+            if (recovery) res.appendHeader('Set-Cookie', recovery);
             return result;
           }
           const duplicate = db.prepare('SELECT p.identity_id,t.id AS teamId,t.name FROM participant_profiles p JOIN teams t ON t.id=p.team_id WHERE p.session_id=? AND p.email=?').get(row.id,email);
           if(duplicate) {
+            if (existingActor?.id !== duplicate.identity_id) throw new ApiError(409, 'REGISTRATION_ALREADY_EXISTS');
             if(teamKey(b.name) !== teamKey(duplicate.name) || (b.teamId !== undefined && b.teamId !== duplicate.teamId)) throw new ApiError(409,'TEAM_CHANGE_NOT_ALLOWED');
             return complete({id:duplicate.identity_id,teamId:duplicate.teamId,name:duplicate.name,reused:true});
           }
@@ -315,12 +330,42 @@ export function createApp(options = {}) {
         emitTeamProgress(row.id, result.teamId);
         return json(res,result.reused ? 200 : 201,{sessionId:row.id,statisticsCode:row.statistics_code,teamId:result.teamId,teamName:result.name,maxMembers:MAX_TEAM_MEMBERS});
       }
+      if (req.method === 'POST' && url.pathname === '/api/auth/reconnect') {
+        let actor;
+        try { actor = authenticate(req); } catch {}
+        if (actor?.role === 'PARTICIPANT') {
+          const recovery = prepareRecovery(actor.id);
+          if (recovery) res.setHeader('Set-Cookie', recovery);
+          return json(res, 200, { sessionId: actor.session_id, role: actor.role });
+        }
+        const secret = /(?:^|;\s*)ingenia_recovery=([A-Za-z0-9_-]{43})(?:;|$)/.exec(req.headers.cookie ?? '')?.[1];
+        if (!secret) throw new ApiError(401, 'UNAUTHENTICATED');
+        const participant = transaction(db, () => {
+          const identity = db.prepare(`SELECT i.* FROM participant_recovery r
+            JOIN identities i ON i.id=r.identity_id WHERE r.hash=? AND r.expires>? AND i.role='PARTICIPANT'`).get(hash(secret), Date.now());
+          if (!identity || !activeSessions.has(identity.session_id)) throw new ApiError(401, 'UNAUTHENTICATED');
+          issue(res, identity);
+          return identity;
+        });
+        return json(res, 200, { sessionId: participant.session_id, role: participant.role });
+      }
       if (path === '/api/auth/logout' && req.method === 'POST') {
-        authenticate(req);
-        const { token, name } = tokenFor(req);
-        db.prepare('DELETE FROM tokens WHERE hash=?').run(hash(token));
-        for (const c of clients) if (c.tokenHash === hash(token)) { c.res.end(); clients.delete(c); }
-        res.setHeader('Set-Cookie', `${name}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`);
+        const { token, name, actor } = tokenFor(req);
+        const participant = actor.role === 'PARTICIPANT';
+        const tokenHash = hash(token);
+        transaction(db, () => {
+          if (participant) {
+            db.prepare('UPDATE participant_recovery SET expires=0 WHERE identity_id=?').run(actor.id);
+            db.prepare('DELETE FROM tokens WHERE identity_id=?').run(actor.id);
+          } else {
+            db.prepare('DELETE FROM tokens WHERE hash=?').run(tokenHash);
+          }
+        });
+        for (const c of clients) {
+          if (c.tokenHash === tokenHash || (participant && c.actor.id === actor.id)) { c.res.end(); clients.delete(c); }
+        }
+        res.setHeader('Set-Cookie', `${name}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure ? '; Secure' : ''}`);
+        if (participant) res.appendHeader('Set-Cookie', recoveryCookie('', 0));
         return json(res, 200, { ok: true });
       }
       if (path === '/api/notes' && req.method === 'POST') {
@@ -720,18 +765,11 @@ export function createApp(options = {}) {
         const b = await body(req);
         if (typeof b.token === 'string' && b.token.length > 0) {
           if (!text(b.token, 100)) throw new ApiError(401, 'INVALID_CREDENTIALS');
-          const row = db.prepare("SELECT t.* FROM tokens t JOIN identities i ON i.id=t.identity_id WHERE t.hash=? AND t.expires>? AND i.role='PROJECTOR'").get(hash(b.token), Date.now());
-          if (!row) throw new ApiError(401, 'INVALID_CREDENTIALS');
+          const row = db.prepare("SELECT t.*, i.session_id FROM tokens t JOIN identities i ON i.id=t.identity_id WHERE t.hash=? AND t.expires>? AND i.role='PROJECTOR'").get(hash(b.token), Date.now());
+          if (!row || !activeSessions.has(row.session_id)) throw new ApiError(401, 'INVALID_CREDENTIALS');
           // El enlace es de un solo uso; se intercambia por cookie HttpOnly.
           db.prepare('DELETE FROM tokens WHERE hash=?').run(hash(b.token));
           issue(res, { id: row.identity_id }); return json(res, 200, { ok: true });
-        }
-        if (text(b.sessionId, 40)) {
-          getSession(b.sessionId);
-          const identityId = randomUUID();
-          db.prepare('INSERT INTO identities VALUES (?,?,?,NULL)').run(identityId, b.sessionId, 'PROJECTOR');
-          issue(res, { id: identityId });
-          return json(res, 200, { ok: true, sessionId: b.sessionId });
         }
         throw new ApiError(401, 'INVALID_CREDENTIALS');
       }
@@ -775,6 +813,7 @@ export function createApp(options = {}) {
   const heartbeat = setInterval(() => {
     for (const c of clients) {
       if (c.expires <= Date.now()) { c.res.end(); clients.delete(c); }
+      else if (c.res.writableLength > maxPendingStreamBytes) c.res.destroy();
       else c.res.write(': heartbeat\n\n');
     }
     for (const [key, value] of rates) if (value.until < Date.now()) rates.delete(key);

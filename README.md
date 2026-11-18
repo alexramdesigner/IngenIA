@@ -1,6 +1,6 @@
 # IngenIA Studio
 
-Base ejecutable del taller «Crea tu primera APP con IA». Dos salas independientes para el **18 de noviembre de 2026, 14:00–16:00 y 18:00–20:00, America/Bogota**.
+Base ejecutable del taller «Crea tu primera APP con IA». Una sesión virtual el **viernes 20 de noviembre de 2026, de 6:00 a 8:00 p. m., hora de Colombia**.
 
 Implementa las fundaciones de M0 y el recorrido DEMO de las seis fases del modelo pedagógico **INGGEN AI-DSE** (Descubrimiento, Especificación, Arquitectura, Construcción con IA, Verificación, Entrega y aprendizaje). AI-DSE es una propuesta didáctica de Inggen basada en SDLC, Agile, especificación verificable, TDD, DevSecOps y revisión humana; no es una norma oficial. La IA es simulada con fixtures reproducibles. **No está aprobado todavía para operar el evento.** Ver [estado y pendientes](docs/ESTADO.md).
 
@@ -25,14 +25,14 @@ Herd puede seguir administrando tus otros proyectos. Esta aplicación utiliza su
 ## Probar el taller
 
 1. Abre Control Center, elige grupo e ingresa con la contraseña local. Cada sesión comienza en `WAITING`.
-2. Abre la vista del participante, selecciona el horario e ingresa un nombre de equipo; para probar como estudiante sin privilegios utiliza otro navegador o perfil. Cada integrante ingresa desde su propio navegador; **máximo seis por equipo**. Tras seleccionar el horario, escribe el nombre y selecciona el equipo sugerido. Si no existe, se crea al ingresar; mayúsculas y espacios equivalentes no crean equipos distintos.
+2. Abre la vista del participante, ingresa tus datos y el nombre de equipo; para probar como estudiante sin privilegios utiliza otro navegador o perfil. Cada integrante ingresa desde su propio navegador; **máximo seis por equipo**. Tras seleccionar el horario, escribe el nombre y selecciona el equipo sugerido. Si no existe, se crea al ingresar; mayúsculas y espacios equivalentes no crean equipos distintos.
 3. En Studio, pulsa **Abrir proyección 16:9**. Se abre una pestaña independiente de solo lectura en el mismo navegador, sin reemplazar el acceso del conferencista. Permite ventanas emergentes si el navegador las bloquea. Mueve esa pestaña a la pantalla del auditorio y pulsa **Pantalla completa** (el control aparece al mover el puntero o enfocarlo con Tab). El lienzo 1920×1080 se escala automáticamente y conserva 16:9 con bandas negras cuando corresponde.
 4. Inicia la sesión desde Control Center. Cada fase pasa por **Teoría → Práctica → Reflexión → Cerrada**; las entregas solo se aceptan en práctica. Los equipos eligen su proyecto y completan la ficha de descubrimiento, las historias y criterios, la decisión de arquitectura, el prompt (prellenado con lo acordado) y la revisión del prototipo simulado, un hallazgo con prueba de regresión y la decisión de entrega con plan de reversión. Studio puede aceptar cada entrega o pedir revisión. Desde Verificación se puede abrir una nueva iteración que vuelve a Construcción con IA (máximo tres). El proyector muestra estado y progreso real; los prototipos están rotulados SIMULACIÓN.
 5. Comprueba pausa, reanudación y reapertura. Para cambiar de grupo cierra el acceso e ingresa de nuevo. Al finalizar, las lecturas permanecen disponibles durante la vigencia del acceso.
 
 Las entregas se guardan como borrador o se envían; lo escrito sin guardar permanece solo en memoria de la pestaña. No se usa localStorage como autoridad ni se promete autosave todavía.
 
-Los estudiantes no ven enlaces a Studio o proyección. Sus accesos son rechazados por el servidor en esas páginas y APIs. Los participantes ingresan por horario, sin código manual. El servidor conserva un identificador estadístico por fecha y sesión (`ING-20261118-1400-TARDE` o `ING-20261118-1800-NOCHE`), visible en Studio y en reportes.
+Los estudiantes no ven enlaces a Studio o proyección. Sus accesos son rechazados por el servidor en esas páginas y APIs. Los participantes ingresan directamente a la sesión virtual, sin código manual. El servidor conserva un identificador estadístico por fecha y sesión (`ING-20261118-1400-TARDE` o `ING-20261118-1800-NOCHE`), visible en Studio y en reportes.
 
 El acceso al login de Studio sin autenticar es público, pero solo la contraseña del conferencista habilita la consola. Cada vista usa una cookie de rol independiente. `/presenter` permanece como alias de `/studio`.
 

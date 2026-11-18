@@ -10,11 +10,13 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { WORKSHOP_SESSION } from '../packages/shared/workshop-session.mjs';
 
 const raw = name => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : undefined; };
 const arg = (name, fallback) => raw(name) === undefined ? fallback : Number(raw(name));
 const REMOTE = raw('url')?.replace(/\/$/, '');
 const TEAMS = arg('teams', 50), MEMBERS = arg('members', 6), PORT = arg('port', 3917);
+const sessionId = WORKSHOP_SESSION.id;
 const password = REMOTE ? process.env.LOAD_PASSWORD : `carga-${randomUUID()}`;
 if (REMOTE && !password) { console.error('Define LOAD_PASSWORD con la contraseña de Studio de la instancia de prueba.'); process.exit(2); }
 const dir = REMOTE ? null : mkdtempSync(join(tmpdir(), 'ingenia-carga-'));
@@ -28,7 +30,7 @@ const errors = [];
 
 async function request(path, data, cookie, label) {
   const started = performance.now();
-  const res = await fetch(base + path, { method: data ? 'POST' : 'GET', headers: { ...(data ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}) }, body: data ? JSON.stringify(data) : undefined });
+  const res = await fetch(base + path, { method: data ? 'POST' : 'GET', headers: { ...(data ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}) }, body: data ? JSON.stringify(data) : undefined, signal: AbortSignal.timeout(30_000) });
   const body = await res.json();
   if (label) record(label, performance.now() - started);
   if (!res.ok) errors.push(`${label ?? path}: ${res.status} ${body.error}`);
@@ -45,7 +47,8 @@ function listen(cookie, role, view = '') {
   const client = { role, version: -1, stage: null, events: 0, bytes: 0, maxBytes: 0, seen: new Map(), controller: new AbortController() };
   clients.push(client);
   return new Promise(resolve => {
-    fetch(`${base.replace('/api', '/api' + view)}/sessions/tarde/events`, { headers: { Cookie: cookie }, signal: client.controller.signal }).then(async res => {
+    fetch(`${base.replace('/api', '/api' + view)}/sessions/${sessionId}/events`, { headers: { Cookie: cookie }, signal: client.controller.signal }).then(async res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const reader = res.body.getReader(), decoder = new TextDecoder();
       let buffer = '';
       for (;;) {
@@ -64,7 +67,8 @@ function listen(cookie, role, view = '') {
           resolve();
         }
       }
-    }).catch(error => { if (error.name !== 'AbortError') errors.push(`sse: ${error.message}`); resolve(); });
+      if (!client.controller.signal.aborted) throw new Error('La conexión se cerró antes de terminar la prueba.');
+    }).catch(error => { if (error.name !== 'AbortError') errors.push(`sse: ${error.cause?.code ?? error.message}`); resolve(); });
   });
 }
 // Tiempo hasta que todas las pantallas reciben la versión indicada.
@@ -77,33 +81,51 @@ async function fanout(version, since, label, timeout = 15000) {
 }
 
 try {
-  for (let i = 0; i < 100; i++) { try { await fetch(`${origin}/healthz`); break; } catch { await new Promise(r => setTimeout(r, 100)); } }
-  const presenter = (await request('/auth/presenter', { password, sessionId: 'tarde' })).cookie;
+  let ready = false;
+  for (let i = 0; i < 100 && !ready; i++) {
+    if (server && server.exitCode !== null) break;
+    try { ready = (await fetch(`${origin}/healthz`, { signal: AbortSignal.timeout(1000) })).ok; } catch {}
+    if (!ready) await new Promise(r => setTimeout(r, 100));
+  }
+  if (!ready) throw new Error('La instancia de ensayo no inició o /healthz no responde.');
+  const presenter = (await request('/auth/presenter', { password, sessionId })).cookie;
   if (!presenter) throw new Error('No se pudo ingresar a Studio: revisa LOAD_PASSWORD y la URL.');
-  const initial = (await request('/sessions/tarde/state', null, presenter)).body;
+  const initial = (await request(`/sessions/${sessionId}/state`, null, presenter)).body;
   // Protección: nunca recorrer una sesión con datos reales.
-  if (initial.status !== 'WAITING' || initial.summary.total > 0) throw new Error(`La sesión «tarde» de ${origin} no está vacía (estado ${initial.status}, ${initial.summary.total} equipos). Usa una instancia de prueba con base temporal.`);
-  const token = (await request('/sessions/tarde/projector-access', {}, presenter)).body.token;
+  if (initial.status !== 'WAITING' || initial.summary.total > 0) throw new Error(`La sesión «${sessionId}» de ${origin} no está vacía (estado ${initial.status}, ${initial.summary.total} equipos). Usa una instancia de prueba con base temporal.`);
+  const token = (await request(`/sessions/${sessionId}/projector-access`, {}, presenter)).body.token;
   const projector = (await request('/auth/projector', { token })).cookie;
 
   console.log(`Registrando ${TEAMS * MEMBERS} participantes en ${TEAMS} equipos…`);
   const people = [];
   const registration = performance.now();
   await pool(Array.from({ length: TEAMS * MEMBERS }, (_, i) => i), 50, async i => {
-    await request('/team-search', { sessionId: 'tarde', query: `Equipo ${i % TEAMS}` }, null, 'búsqueda de equipo');
-    const joined = await request('/auth/join', { sessionId: 'tarde', name: `Equipo ${i % TEAMS}`, fullName: `Persona de prueba ${i}`, email: `carga${i}@ucundinamarca.edu.co` }, null, 'registro');
+    await request('/team-search', { sessionId, query: `Equipo ${i % TEAMS}` }, null, 'búsqueda de equipo');
+    const joined = await request('/auth/join', { sessionId, name: `Equipo ${i % TEAMS}`, fullName: `Persona de prueba ${i}`, email: `carga${i}@ucundinamarca.edu.co` }, null, 'registro');
     if (joined.cookie) people.push({ cookie: joined.cookie, team: i % TEAMS });
   });
   const registrationSeconds = (performance.now() - registration) / 1000;
 
   console.log('Abriendo conexiones en vivo…');
-  await Promise.all([listen(presenter, 'studio', '/studio'), listen(projector, 'proyector', '/projection'), ...people.map(p => listen(p.cookie, 'participante'))]);
+  const streams = Promise.all([
+    listen(presenter, 'studio', '/studio'),
+    listen(projector, 'proyector', '/projection'),
+    pool(people, 100, participant => listen(participant.cookie, 'participante')),
+  ]);
+  let streamTimeout;
+  try {
+    await Promise.race([streams, new Promise((_, reject) => {
+      streamTimeout = setTimeout(() => reject(new Error('No se abrieron todas las conexiones en vivo en 30 s.')), 30_000);
+    })]);
+  } finally { clearTimeout(streamTimeout); }
+  if (clients.some(client => !client.events)) throw new Error(`Conexiones SSE fallidas: ${[...new Set(errors)].join(', ')}`);
   const leaders = [...new Map(people.map(p => [p.team, p])).values()];
 
-  const versionOf = async () => (await request('/sessions/tarde/state', null, presenter)).body.version;
+  const versionOf = async () => (await request(`/sessions/${sessionId}/state`, null, presenter)).body.version;
   async function command(action, extra = {}) {
     const started = performance.now();
-    const result = await request('/sessions/tarde/phase-command', { action, expectedVersion: await versionOf(), idempotencyKey: randomUUID(), confirm: true, ...extra }, presenter, `comando ${action}`);
+    const result = await request(`/sessions/${sessionId}/phase-command`, { action, expectedVersion: await versionOf(), idempotencyKey: randomUUID(), confirm: true, ...extra }, presenter, `comando ${action}`);
+    if (result.status !== 200) throw new Error(`${action}: HTTP ${result.status} ${result.body.error}`);
     await fanout(result.body.version, started, action);
   }
   const PAYLOADS = {
@@ -112,37 +134,39 @@ try {
     architecture: { architecture: 'client-api', data: 'Reserva con fecha y propietario', accessFlow: 'Inicio de sesión y API que valida', authRule: 'Solo el propietario ve o cancela', justification: 'Datos compartidos y control en servidor' },
     generate: { prompt: 'Crea la app de reservas con API, base de datos y autorización por propietario.' },
     construction: { matches: 'Crea y lista reservas como pedimos', differs: 'No comprueba el propietario por id' },
-    verification: { category: 'Seguridad', severity: 'Alta', description: 'Se consulta la reserva de otro usuario', impact: 'Exposición de datos', regressionTest: 'Consultar una reserva ajena responde prohibido' }
+    verification: { category: 'Seguridad', severity: 'Alta', description: 'Se consulta la reserva de otro usuario', impact: 'Exposición de datos', regressionTest: 'Consultar una reserva ajena responde prohibido' },
+    delivery: { decision: 'PUBLISH_WITH_CONDITIONS', conditions: 'Corregir la regla de autorización antes de publicar', residualRisk: 'El prototipo requiere verificar el aislamiento de reservas', rollback: 'Volver a la versión anterior del prototipo', improvement: 'Agregar una comprobación por propietario', checklist: true }
   };
   async function teamsSubmit(action) {
     const started = performance.now();
     await Promise.all(leaders.map(async leader => {
-      const version = (await request('/sessions/tarde/state', null, leader.cookie)).body.version;
-      await request(`/sessions/tarde/actions/${action}`, { ...PAYLOADS[action], expectedVersion: version, idempotencyKey: randomUUID() }, leader.cookie, `entrega ${action}`);
+      const version = (await request(`/sessions/${sessionId}/state`, null, leader.cookie)).body.version;
+      await request(`/sessions/${sessionId}/actions/${action}`, { ...PAYLOADS[action], expectedVersion: version, idempotencyKey: randomUUID() }, leader.cookie, `entrega ${action}`);
     }));
     record(`ráfaga de ${leaders.length} entregas · ${action}`, performance.now() - started);
   }
 
   console.log('Recorriendo el taller…');
   await command('START');
-  for (const [phase, actions] of [[1, ['discovery']], [2, ['specification']], [3, ['architecture']], [4, ['generate', 'construction']], [5, ['verification']]]) {
+  for (const [phase, actions] of [[1, ['discovery']], [2, ['specification']], [3, ['architecture']], [4, ['generate', 'construction']], [5, ['verification']], [6, ['delivery']]]) {
+    console.log(`Fase ${phase} de 6…`);
     await command('PRACTICE');
     for (const action of actions) await teamsSubmit(action);
     if (phase === 3) {
-      const state = (await request('/sessions/tarde/state', null, presenter)).body;
+      const state = (await request(`/sessions/${sessionId}/state`, null, presenter)).body;
       const started = performance.now();
-      for (const a of state.incidents.assignments.filter(a => a.phase === 3)) await request('/sessions/tarde/incidents', { action: 'REVEAL', teamId: a.teamId, code: a.code }, presenter, 'revelar incidente');
+      for (const a of state.incidents.assignments.filter(a => a.phase === 3)) await request(`/sessions/${sessionId}/incidents`, { action: 'REVEAL', teamId: a.teamId, code: a.code }, presenter, 'revelar incidente');
       record('revelar todos los incidentes de la fase', performance.now() - started);
       const first = state.incidents.assignments.find(a => a.phase === 3);
       if (first) {
         const shareStarted = performance.now();
-        const shared = await request('/sessions/tarde/incidents', { action: 'SHARE', teamId: first.teamId, code: first.code, expectedVersion: state.incidents.share.version }, presenter, 'compartir incidente');
-        await request('/sessions/tarde/incidents', { action: 'END_SHARE', expectedVersion: shared.body.incidents.share.version }, presenter, 'finalizar discusión');
+        const shared = await request(`/sessions/${sessionId}/incidents`, { action: 'SHARE', teamId: first.teamId, code: first.code, expectedVersion: state.incidents.share.version }, presenter, 'compartir incidente');
+        await request(`/sessions/${sessionId}/incidents`, { action: 'END_SHARE', expectedVersion: shared.body.incidents.share.version }, presenter, 'finalizar discusión');
       }
     }
     if (phase === 2) { await command('PAUSE'); await command('RESUME'); }
     await command('REFLECT');
-    await command('ADVANCE');
+    if (phase < 6) await command('ADVANCE');
   }
   await command('FINISH');
 

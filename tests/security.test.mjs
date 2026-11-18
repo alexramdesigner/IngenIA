@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createApp } from '../services/api/server.mjs';
 import { transition } from '../services/api/domain.mjs';
+const nightSession = { id: 'noche', title: 'Grupo de la noche', startAt: '2026-11-18T18:00:00-05:00', endAt: '2026-11-18T20:00:00-05:00' };
 const password = 'test-only-presenter-password-123456789';
 // Entregas válidas por acción; cada prueba sobreescribe solo lo que necesita.
 const VALID = {
@@ -18,7 +19,7 @@ const VALID = {
   delivery: { decision: 'PUBLISH_WITH_CONDITIONS', conditions: 'Solo tras corregir la autorización por propietario', residualRisk: 'Prototipo simulado sin pruebas de carga', rollback: 'Volver a la versión anterior y desactivar reservas nuevas', improvement: 'Agregar pruebas de autorización horizontal', checklist: true }
 };
 async function harness(t, database = ':memory:') {
-  const app = createApp({ database, password, logRequests: false });
+  const app = createApp({ database, password, logRequests: false, additionalSessions: [nightSession] });
   await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
   t.after(() => app.close());
   const base = `http://127.0.0.1:${app.server.address().port}`;
@@ -26,7 +27,7 @@ async function harness(t, database = ':memory:') {
   async function request(path, data, cookie, headers = {}) {
     if(path === '/auth/join' && data) data = { ...(profiles.get(cookie) ?? {fullName:'Participante de prueba',email:`${randomUUID()}@ucundinamarca.edu.co`}), ...data };
     const res = await fetch(base + '/api' + path, { method: data ? 'POST' : 'GET', headers: { ...(data ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}), ...headers }, body: data ? JSON.stringify(data) : undefined });
-    const result = { status: res.status, body: await res.json(), cookie: res.headers.get('set-cookie')?.split(';')[0] };
+    const result = { status: res.status, body: await res.json(), cookie: res.headers.get('set-cookie')?.split(';')[0], cookies: res.headers.getSetCookie() };
     if(path === '/auth/join' && result.cookie && res.ok) profiles.set(result.cookie,{fullName:data.fullName,email:data.email});
     return result;
   }
@@ -130,6 +131,7 @@ test('Caso 15: SSE sincronizado y proyector sin datos privados ni mutaciones', a
   const h = await harness(t);
   const access = await h.request('/sessions/tarde/projector-access',{},h.presenter);
   const projector = (await h.request('/auth/projector',{token:access.body.token})).cookie;
+  assert.equal((await h.request('/auth/projector',{sessionId:'tarde'})).status,401);
   assert.equal((await h.request('/auth/projector',{token:access.body.token})).status,401);
   const abort = new AbortController();
   const response = await fetch(h.base+'/api/sessions/tarde/events',{headers:{Cookie:projector},signal:abort.signal});
@@ -303,7 +305,7 @@ test('Ingreso sin código: sesión elegida genera identificador estadístico y a
   const h=await harness(t);
   const join=await h.request('/auth/join',{sessionId:'tarde',name:'Equipo sin código'});
   assert.equal(join.status,201);
-  assert.equal(join.body.statisticsCode,'ING-20261118-1400-TARDE');
+  assert.equal(join.body.statisticsCode,'ING-20261120-1800-TARDE');
   const search=await h.request('/team-search',{sessionId:'tarde',query:'equipo sin'});
   assert.equal(search.body.teams[0].id,join.body.teamId);
   assert.equal((await h.request('/team-search',{sessionId:'noche',query:'equipo sin'})).body.teams.length,0);
@@ -350,7 +352,7 @@ test('Identidad nominal y roles únicos: seis puestos sin elevar permisos de apl
   assert.ok(states.every(r=>r.body.role==='PARTICIPANT'));
   assert.equal(states[1].body.profile.fullName,'Persona Prueba 0');
   const duplicate=await h.request('/auth/join',{sessionId:'tarde',name:'Otro equipo',fullName:'Otra persona',email:'PERSONA0@UCUNDINAMARCA.EDU.CO'});
-  assert.equal(duplicate.body.error,'TEAM_CHANGE_NOT_ALLOWED');
+  assert.equal(duplicate.body.error,'REGISTRATION_ALREADY_EXISTS');
   assert.equal((await h.request('/auth/join',{sessionId:'tarde',name:'Otra',fullName:'',email:'no-valido'})).status,400);
   assert.equal((await h.request('/sessions/tarde/state',null,h.presenter)).body.profile,undefined);
   assert.equal((await h.request('/team-search',{sessionId:'tarde',query:'equipo'})).body.teams[0].email,undefined);
@@ -378,12 +380,46 @@ async function registrationFor(h,cookie=h.participant) {
   const state=(await h.request('/sessions/tarde/state',null,cookie)).body;
   return {sessionId:'tarde',name:state.team.name,fullName:state.profile.fullName,email:state.profile.email};
 }
-test('Reingreso sin cookie conserva identidad, rol, equipo, notas y proyecto; revoca acceso anterior', async t=>{
+test('El navegador recupera el acceso durante tres horas sin renovar la ventana', async t => {
+  const h = await harness(t);
+  const join = await h.request('/auth/join', { sessionId: 'tarde', name: 'Equipo de reconexión' });
+  const header = join.cookies.find(cookie => cookie.startsWith('ingenia_recovery='));
+  assert.match(header, /HttpOnly; SameSite=Strict; Path=\/api\/auth; Max-Age=10800/);
+  const recovery = header.split(';')[0];
+  assert.equal((await h.request('/me', null, recovery)).status, 401);
+  assert.equal((await h.request('/auth/reconnect', {})).status, 401);
+  const before = (await h.request('/sessions/tarde/state', null, join.cookie)).body;
+  const expiry = () => h.db.prepare('SELECT expires FROM participant_recovery WHERE identity_id=?').get(before.actorId).expires;
+  const originalExpiry = expiry();
+  const restored = await h.request('/auth/reconnect', {}, recovery);
+  assert.equal(restored.status, 200);
+  assert.equal((await h.request('/sessions/tarde/state', null, restored.cookie)).body.actorId, before.actorId);
+  assert.equal(expiry(), originalExpiry);
+  assert.equal(restored.cookies.length, 1);
+  h.db.prepare('UPDATE participant_recovery SET expires=? WHERE identity_id=?').run(Date.now(), before.actorId);
+  assert.equal((await h.request('/auth/reconnect', {}, recovery)).status, 401);
+  assert.equal((await h.request('/auth/reconnect', {}, restored.cookie)).cookies.length, 0);
+});
+test('Cerrar acceso revoca la recuperación y las sesiones recuperadas', async t => {
+  const h = await harness(t);
+  const join = await h.request('/auth/join', { sessionId: 'tarde', name: 'Equipo revocado' });
+  const recovery = join.cookies.find(cookie => cookie.startsWith('ingenia_recovery=')).split(';')[0];
+  const restored = await h.request('/auth/reconnect', {}, recovery);
+  const logout = await h.request('/auth/logout', {}, join.cookie);
+  assert.equal(logout.status, 200);
+  assert.ok(logout.cookies.some(cookie => cookie.startsWith('ingenia_recovery=;') && cookie.includes('Max-Age=0')));
+  assert.equal((await h.request('/me', null, restored.cookie)).status, 401);
+  assert.equal((await h.request('/auth/reconnect', {}, recovery)).status, 401);
+});
+test('Reingreso autenticado conserva identidad, rol, equipo, notas y proyecto; revoca acceso anterior', async t=>{
   const h=await harness(t); const registration=await registrationFor(h);
   await h.command('START'); await h.act('discovery',{problem:'Problema original que debe conservarse al recuperar acceso'});
   await h.request('/notes',{content:'Apuntes privados que deben conservarse',expectedVersion:0},h.participant);
   const before=(await h.request('/sessions/tarde/state',null,h.participant)).body;
-  const resumed=await h.request('/auth/join',registration);
+  const denied=await h.request('/auth/join',registration);
+  assert.equal(denied.body.error,'REGISTRATION_ALREADY_EXISTS');
+  assert.equal(denied.cookie,undefined);
+  const resumed=await h.request('/auth/join',registration,h.participant);
   assert.equal(resumed.status,200); assert.ok(resumed.cookie); assert.notEqual(resumed.cookie,h.participant);
   assert.equal((await h.request('/me',null,h.participant)).status,401);
   const after=(await h.request('/sessions/tarde/state',null,resumed.cookie)).body;
@@ -395,7 +431,7 @@ test('Cambiar de equipo al recuperar acceso se rechaza sin invalidar el acceso c
   const h=await harness(t); const registration=await registrationFor(h);
   const alternate=await h.request('/auth/join',{sessionId:'tarde',name:'Equipo alternativo'});
   for(const payload of [{...registration,name:'Equipo alternativo'},{...registration,teamId:alternate.body.teamId}]) {
-    const denied=await h.request('/auth/join',payload);
+    const denied=await h.request('/auth/join',payload,h.participant);
     assert.equal(denied.body.error,'TEAM_CHANGE_NOT_ALLOWED');
     assert.equal((await h.request('/me',null,h.participant)).status,200);
   }
@@ -405,7 +441,7 @@ test('Cambiar de equipo al recuperar acceso se rechaza sin invalidar el acceso c
   assert.equal((await h.request('/auth/join',newEmail,h.participant)).body.error,'IDENTITY_MISMATCH');
   assert.equal((await h.request('/me',null,h.participant)).status,200);
 });
-test('Cambiar de horario no traslada equipos, roles, notas ni entregas; recuperar grupo previo restaura su trabajo', async t=>{
+test('Cambiar de horario no traslada equipos, roles, notas ni entregas', async t=>{
   const h=await harness(t); const registration=await registrationFor(h);
   await h.request('/notes',{content:'Notas exclusivas del grupo tarde',expectedVersion:0},h.participant);
   const night=await h.request('/auth/join',{...registration,sessionId:'noche'},h.participant);
@@ -415,20 +451,17 @@ test('Cambiar de horario no traslada equipos, roles, notas ni entregas; recupera
   assert.equal(nightState.note.content,''); assert.equal(nightState.team.memberCount,1);
   assert.equal((await h.request('/sessions/tarde/state',null,night.cookie)).status,403);
   const returned=await h.request('/auth/join',registration,night.cookie);
-  assert.equal(returned.status,200);
-  assert.equal((await h.request('/me',null,night.cookie)).status,401);
-  const restored=(await h.request('/sessions/tarde/state',null,returned.cookie)).body;
-  assert.equal(restored.note.content,'Notas exclusivas del grupo tarde');
-  assert.notEqual(restored.team.id,nightState.team.id);
+  assert.equal(returned.body.error,'REGISTRATION_ALREADY_EXISTS');
+  assert.equal((await h.request('/me',null,night.cookie)).status,200);
+  assert.equal(h.db.prepare('SELECT content FROM participant_notes WHERE session_id=?').get('tarde').content,'Notas exclusivas del grupo tarde');
   assert.equal((await h.request('/auth/join',{...registration,sessionId:'inexistente'})).status,400);
-  assert.equal((await h.request('/me',null,returned.cookie)).status,200);
 });
 test('Dos reingresos simultáneos dejan un único token vigente; el equipo no suma miembros',async t=>{
   const h=await harness(t);const registration=await registrationFor(h);
-  const replies=await Promise.all([h.request('/auth/join',registration),h.request('/auth/join',registration)]);
-  assert.ok(replies.every(r=>r.status===200));
-  const states=await Promise.all(replies.map(r=>h.request('/me',null,r.cookie)));
-  assert.deepEqual(states.map(r=>r.status).sort(),[200,401]);
+  const replies=await Promise.all([h.request('/auth/join',registration,h.participant),h.request('/auth/join',registration,h.participant)]);
+  assert.deepEqual(replies.map(r=>r.status).sort(),[200,409]);
+  const granted=replies.find(r=>r.status===200);
+  assert.equal((await h.request('/me',null,granted.cookie)).status,200);
   assert.equal(h.db.prepare('SELECT COUNT(*) n FROM participant_profiles').get().n,1);
 });
 test('Reingreso revoca también el stream SSE del navegador anterior',async t=>{
@@ -436,28 +469,28 @@ test('Reingreso revoca también el stream SSE del navegador anterior',async t=>{
   const abort=new AbortController();t.after(()=>abort.abort());
   const response=await fetch(h.base+'/api/sessions/tarde/events',{headers:{Cookie:h.participant},signal:abort.signal});
   const reader=response.body.getReader();await reader.read();
-  await h.request('/auth/join',registration);
+  await h.request('/auth/join',registration,h.participant);
   assert.equal((await reader.read()).done,true);
   assert.equal((await h.request('/sessions/tarde/state',null,h.participant)).status,401);
 });
-test('Recuperar después de logout, pausa y cierre mantiene lectura y bloqueos del taller',async t=>{
+test('El reingreso autenticado mantiene los bloqueos y el cierre de acceso revoca la sesión',async t=>{
   const h=await harness(t); const registration=await registrationFor(h);
-  await h.request('/auth/logout',{},h.participant);
-  const recovered=await h.request('/auth/join',registration);assert.equal(recovered.status,200);
   await h.command('START');await h.command('PAUSE');
-  const paused=await h.request('/auth/join',registration);assert.equal(paused.status,200);
+  const paused=await h.request('/auth/join',registration,h.participant);assert.equal(paused.status,200);
   assert.equal((await h.act('discovery',{},paused.cookie)).status,403);
   await h.command('FINISH',{confirm:true});
-  const closed=await h.request('/auth/join',registration);assert.equal(closed.status,200);
+  const closed=await h.request('/auth/join',registration,paused.cookie);assert.equal(closed.status,200);
   assert.equal((await h.request('/sessions/tarde/state',null,closed.cookie)).body.status,'FINISHED');
   assert.equal((await h.act('discovery',{},closed.cookie)).status,403);
+  await h.request('/auth/logout',{},closed.cookie);
+  assert.equal((await h.request('/auth/join',registration)).body.error,'REGISTRATION_ALREADY_EXISTS');
   assert.equal((await h.request('/auth/join',{sessionId:'tarde',name:'Otro equipo'})).body.error,'SESSION_FINISHED');
 });
 
 test('Un equipo lleno permite recuperar un miembro existente, pero rechaza al séptimo nuevo',async t=>{
   const h=await harness(t); const registration=await registrationFor(h);
   for(let i=0;i<5;i++) assert.equal((await h.request('/auth/join',{sessionId:'tarde',name:'Equipo A'})).status,201);
-  const recovered=await h.request('/auth/join',registration);
+  const recovered=await h.request('/auth/join',registration,h.participant);
   assert.equal(recovered.status,200);
   assert.equal((await h.request('/sessions/tarde/state',null,recovered.cookie)).body.team.memberCount,6);
   assert.equal((await h.request('/auth/join',{sessionId:'tarde',name:'Equipo A'})).body.error,'TEAM_FULL');
@@ -720,7 +753,7 @@ test('Migración AI-DSE: sesiones previas vuelven a espera y su trabajo queda pa
   const { DatabaseSync } = await import('node:sqlite');
   const dir = mkdtempSync(join(tmpdir(), 'ingenia-migration-')); t.after(() => rmSync(dir, { recursive: true, force: true }));
   const database = join(dir, 'legacy.sqlite');
-  (await createApp({ database, password }).close());
+  (await createApp({ database, password, additionalSessions: [nightSession] }).close());
   const legacy = new DatabaseSync(database);
   legacy.exec(`DROP TABLE presenter_phase_notes; CREATE TABLE presenter_phase_notes(session_id TEXT NOT NULL REFERENCES sessions(id), phase INTEGER NOT NULL CHECK(phase BETWEEN 1 AND 5), content TEXT NOT NULL, version INTEGER NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY(session_id,phase)); PRAGMA user_version=8;`);
   legacy.prepare("UPDATE sessions SET data=json_remove(json_set(data,'$.status','ACTIVE','$.activePhase',2,'$.version',4),'$.model') WHERE id='tarde'").run();
@@ -738,6 +771,36 @@ test('Migración AI-DSE: sesiones previas vuelven a espera y su trabajo queda pa
   migrated.db.prepare("INSERT INTO presenter_phase_notes VALUES ('tarde',6,'Fase seis',1,1)").run();
   assert.equal(migrated.db.prepare('PRAGMA user_version').get().user_version, 9);
   assert.equal(JSON.parse(migrated.db.prepare("SELECT data FROM sessions WHERE id='noche'").get().data).legacyReset, undefined);
+});
+test('La sesión virtual actualiza el horario sin borrar registros previos y archiva la otra sala', async t => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const dir = mkdtempSync(join(tmpdir(), 'ingenia-schedule-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const database = join(dir, 'workshop.sqlite');
+  const previous = await harness(t, database);
+  const archived = await previous.request('/auth/join', { sessionId: 'noche', name: 'Equipo histórico' });
+  const before = (await previous.request('/sessions/tarde/state', null, previous.presenter)).body;
+  const legacy = new DatabaseSync(database);
+  legacy.prepare("UPDATE sessions SET data=json_set(data,'$.startAt',?,'$.endAt',?,'$.title',?),statistics_code=? WHERE id='tarde'")
+    .run('2026-11-18T14:00:00-05:00', '2026-11-18T16:00:00-05:00', 'Grupo de la tarde', 'ING-20261118-1400-TARDE');
+  legacy.close();
+
+  const app = createApp({ database, password, logRequests: false });
+  t.after(() => app.close());
+  await new Promise(resolve => app.server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${app.server.address().port}/api`;
+  const post = (path, data) => fetch(base + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  const saved = await fetch(base + '/sessions/tarde/state', { headers: { Cookie: previous.presenter } }).then(res => res.json());
+  const schedule = JSON.parse(app.db.prepare("SELECT data FROM sessions WHERE id='tarde'").get().data);
+  assert.equal(schedule.startAt, '2026-11-20T18:00:00-05:00');
+  assert.equal(schedule.endAt, '2026-11-20T20:00:00-05:00');
+  assert.equal(saved.title, 'Sesión virtual');
+  assert.equal(saved.statisticsCode, 'ING-20261120-1800-TARDE');
+  assert.deepEqual(saved.teams, before.teams);
+  assert.equal((await post('/auth/presenter', { password, sessionId: 'noche' })).status, 404);
+  assert.equal((await fetch(base + '/me', { headers: { Cookie: archived.cookie } })).status, 401);
+  assert.deepEqual((await (await post('/team-search', { query: 'histórico' })).json()).teams, []);
+  assert.equal(app.db.prepare("SELECT COUNT(*) n FROM teams WHERE session_id='noche'").get().n, 1);
 });
 test('Incidentes: motor determinista, idempotente y con límites por equipo', async () => {
   const { planAssignments, INCIDENTS } = await import('../services/api/incidents.mjs');

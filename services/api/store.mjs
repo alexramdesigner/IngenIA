@@ -5,13 +5,15 @@ import { randomBytes } from 'node:crypto';
 import { sessionStatisticsCode } from '../../packages/shared/session-code.mjs';
 import { TEAM_ROLES } from '../../packages/shared/team-roles.mjs';
 import { teamKey } from '../../packages/shared/teams.mjs';
-export function openStore(path) {
+import { WORKSHOP_SESSION } from '../../packages/shared/workshop-session.mjs';
+export function openStore(path, additionalSessions = []) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
     CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY, join_code TEXT UNIQUE NOT NULL, data TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS identities(id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), role TEXT NOT NULL, team_id TEXT);
     CREATE TABLE IF NOT EXISTS tokens(hash TEXT PRIMARY KEY, identity_id TEXT NOT NULL REFERENCES identities(id), expires INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS participant_recovery(identity_id TEXT PRIMARY KEY REFERENCES identities(id) ON DELETE CASCADE, hash TEXT NOT NULL UNIQUE, expires INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS teams(id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), name TEXT NOT NULL, data TEXT NOT NULL, UNIQUE(session_id,name));
     CREATE TABLE IF NOT EXISTS phase_actions(id INTEGER PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), actor_id TEXT NOT NULL, version INTEGER NOT NULL, data TEXT NOT NULL, timestamp INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS idempotency(session_id TEXT NOT NULL, actor_id TEXT NOT NULL, key TEXT NOT NULL, request TEXT NOT NULL, response TEXT NOT NULL, PRIMARY KEY(session_id,actor_id,key));
@@ -34,12 +36,18 @@ export function openStore(path) {
     const register = db.prepare('INSERT OR IGNORE INTO team_names VALUES (?,?,?)');
     for (const row of db.prepare('SELECT id,session_id,name FROM teams ORDER BY rowid').all()) register.run(row.session_id, teamKey(row.name), row.id);
   });
-  const insert = db.prepare('INSERT OR IGNORE INTO sessions(id,join_code,data) VALUES (?, ?, ?)');
-  for (const [id, start, end, title] of [['tarde', '14:00', '16:00', 'Grupo de la tarde'], ['noche', '18:00', '20:00', 'Grupo de la noche']]) {
-    insert.run(id, randomBytes(6).toString('hex').toUpperCase(), JSON.stringify({ id, title, startAt: `2026-11-18T${start}:00-05:00`, endAt: `2026-11-18T${end}:00-05:00`, status: 'WAITING', activePhase: null, version: 0, deadline: null, remainingMs: 0, mode: 'DEMO', model: 'AI-DSE' }));
-  }
   transaction(db, () => {
+    const insert = db.prepare('INSERT OR IGNORE INTO sessions(id,join_code,data) VALUES (?, ?, ?)');
     if (!db.prepare('PRAGMA table_info(sessions)').all().some(column => column.name === 'statistics_code')) db.exec('ALTER TABLE sessions ADD COLUMN statistics_code TEXT');
+    const updateSchedule = db.prepare('UPDATE sessions SET data=json_patch(data,?),statistics_code=? WHERE id=?');
+    for (const session of [WORKSHOP_SESSION, ...additionalSessions]) {
+      insert.run(session.id, randomBytes(6).toString('hex').toUpperCase(), JSON.stringify({
+        ...session, status: 'WAITING', activePhase: null, version: 0, deadline: null, remainingMs: 0, mode: 'DEMO', model: 'AI-DSE'
+      }));
+      updateSchedule.run(JSON.stringify(session), sessionStatisticsCode(session), session.id);
+    }
+  });
+  transaction(db, () => {
     for (const row of db.prepare('SELECT id,data FROM sessions WHERE statistics_code IS NULL').all()) {
       db.prepare('UPDATE sessions SET statistics_code=? WHERE id=?').run(sessionStatisticsCode(JSON.parse(row.data)),row.id);
     }
