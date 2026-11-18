@@ -45,8 +45,8 @@ document.addEventListener('keydown', event => { if (view === 'presenter' && even
 for (const type of ['pwa:installable','pwa:installed']) document.addEventListener(type, () => { if (view === 'participant' && current && participantTab === 'profile') render(current); });
 document.addEventListener('participant:navigate', event => { if(view === 'participant') navigateParticipant(event.detail); });
 const errors = { QUESTION_PERSONAL_LIMIT:'Ya enviaste tu pregunta de esta fase. Podrás preguntar de nuevo en la siguiente.', QUESTION_PHASE_LIMIT:'Se alcanzó el máximo de 5 preguntas en esta fase. Podrás preguntar en la siguiente.', QUESTION_NOT_FOUND:'La pregunta ya no está disponible.', QUESTION_PROJECTION_CONFLICT:'La proyección cambió desde otro Studio. Revisa el estado e inténtalo de nuevo.', PREREQUISITE_ALREADY_SENT:'Tu equipo ya envió esta entrega. La pantalla se actualizará.', INVALID_QUESTION:'Escribe una pregunta de 5 a 1000 caracteres.', QUESTIONS_CLOSED:'Las preguntas se habilitan durante el taller.', REVIEW_VERSION_CONFLICT:'La revisión cambió desde otro Studio. Revisa la selección e inténtalo de nuevo.', REVIEW_PRACTICE_REQUIRED:'Habilita la práctica antes de proyectar un equipo.', TEAM_WORK_REQUIRED:'Este equipo todavía no ha guardado su trabajo de esta fase.', TEAM_NOT_FOUND:'El equipo no pertenece a este horario.', MEMBER_NOT_FOUND:'Este integrante ya no está registrado.', PHASE_NOTE_VERSION_CONFLICT:'Estas notas cambiaron en otro Studio. Tu borrador se conserva; recarga las notas guardadas antes de reemplazarlas.', INVALID_PHASE_NOTE:'Las notas de cada fase admiten hasta 6000 caracteres.', INVALID_TRANSITION:'Esta acción no está disponible en el momento actual.', REGISTRATION_ALREADY_EXISTS: 'Ya existe un registro para ese correo. Usa tu navegador original o contacta al conferencista.', IDENTITY_REQUIRED: 'Escribe tu nombre completo y un correo válido.', TEAM_CHANGE_NOT_ALLOWED: 'Ya estás registrado en otro equipo de este horario. Ingresa con el nombre de tu equipo original.', IDENTITY_MISMATCH: 'Este navegador pertenece a otro participante. Usa otro perfil para registrar a otra persona.', NOTES_READ_ONLY: 'Las notas están en lectura mientras la sesión está pausada o finalizada.', NOTE_VERSION_CONFLICT: 'Las notas cambiaron en otra pestaña. Copia tu borrador y recarga antes de guardar.', INVALID_NOTE: 'Las notas admiten hasta 3000 caracteres.', PHASE_LOCKED: 'Esta acción está bloqueada. Espera la fase indicada por el conferencista.', VERSION_CONFLICT: 'La sesión cambió. Revisa el estado actualizado y vuelve a intentarlo.', INVALID_CREDENTIALS: 'Credenciales incorrectas o enlace expirado.', INVALID_JOIN: 'Revisa el nombre del equipo e inténtalo de nuevo.', TEAM_FULL: 'Este equipo ya tiene seis integrantes. Elige otro equipo o crea uno nuevo.', TEAM_SELECTION_CHANGED: 'El nombre cambió. Selecciona de nuevo el equipo sugerido.', ALREADY_IN_TEAM: 'Ya perteneces a otro equipo de esta sala. Conserva tu acceso actual.', INCOMPLETE_TEAMS: 'Hay equipos con entregas pendientes. Confirma antes de avanzar.', PROMPT_LENGTH: 'El prompt necesita entre 20 y 6000 caracteres.', DELIVERABLE_INVALID: 'Revisa la entrega: falta información o un campo es muy corto.', DISCOVERY_REQUIRED: 'Faltan datos de Descubrimiento. Complétalos en esta pantalla antes de generar.', SPECIFICATION_REQUIRED: 'Faltan datos de Especificación (fase 2). Abre «Completar y enviar Especificación» junto al prompt para corregirlos y continuar.', ARCHITECTURE_REQUIRED: 'Faltan datos de Arquitectura. Complétalos en esta pantalla antes de generar.', CONSTRUCTION_REQUIRED: 'Primero envíen la revisión de Construcción con IA.', VERIFICATION_REQUIRED: 'Primero envíen el hallazgo de Verificación.', PROTOTYPE_REQUIRED: 'Generen una versión del prototipo en esta iteración antes de revisarla.', INCIDENT_NOT_FOUND: 'El incidente no está asignado a este equipo.', INCIDENT_ALREADY_ASSIGNED: 'Ese incidente ya está asignado al equipo.', INCIDENT_PHASE_TAKEN: 'El equipo ya tiene un incidente en esta fase. Quítalo antes de asignar otro.', INCIDENT_PHASE_MISMATCH: 'Solo se puede revelar o compartir durante la fase del incidente.', INCIDENT_HAS_RESPONSE: 'El equipo ya respondió; no se puede ocultar.', INCIDENT_NOT_REVEALED: 'Primero revela el incidente al equipo.', INCIDENT_SHARE_CONFLICT: 'La intervención cambió desde otro Studio. Revisa el estado e inténtalo de nuevo.', INCIDENT_NOT_SHARED: 'No hay un incidente en pantalla.', INCIDENT_CLOSED: 'Este incidente ya se cerró.', RESET_DISABLED: 'El reinicio está bloqueado en este servidor (ALLOW_SESSION_RESET=false).', RESET_CONFIRMATION_REQUIRED: 'Escribe la frase de confirmación exactamente como aparece.', RESET_SESSION_ACTIVE: 'La sesión está en vivo: pausa o finaliza antes de reiniciar.', INCIDENT_RESPONSE_INVALID: 'Elige una opción y justifica la decisión (mínimo 10 caracteres).', RATE_LIMITED: 'Demasiados intentos. Espera un minuto.', ITERATION_LIMIT: 'Se alcanzó el límite de esta iteración.', UNAUTHENTICATED: 'La sesión de acceso expiró. Vuelve a ingresar.' };
-async function api(path, data) {
-  const res = await fetch(({ presenter: '/api/studio', projector: '/api/projection', participant: '/api' })[view] + path, { method: data ? 'POST' : 'GET', headers: data ? { 'Content-Type': 'application/json' } : {}, body: data ? JSON.stringify(data) : undefined });
+async function api(path, data, scope = view) {
+  const res = await fetch(({ presenter: '/api/studio', projector: '/api/projection', participant: '/api' })[scope] + path, { method: data ? 'POST' : 'GET', headers: data ? { 'Content-Type': 'application/json' } : {}, body: data ? JSON.stringify(data) : undefined });
   const result = await res.json();
   if (!res.ok) { const error = new Error((errors[result.error] ?? result.error) + (result.field ? ` Campo: ${FIELD_LABELS[result.field] ?? result.field}.` : '')); error.code = result.error; throw error; }
   return result;
@@ -670,6 +670,12 @@ async function connect() {
   };
   for (const type of ['state','session.started','phase.closed','phase.opened','session.paused','session.resumed','session.finished','timer.updated','team.progress','phase.practice','presenter.notes.updated','team.review.updated','presence.updated','phase.reflection','phase.completed','incident.updated','question.updated','question.projection.updated']) stream.addEventListener(type, e => { online = true; setConnection('En vivo · Servidor conectado'); const next = JSON.parse(e.data); notifyQuestion(next); recordStudioEvent(type, next); render(next); });
 }
+async function openProjectionFromStudio() {
+  const { sessionId } = await api('/me', undefined, 'presenter');
+  const { token } = await api(`/sessions/${sessionId}/projector-access`, {}, 'presenter');
+  await api('/auth/projector', { token });
+  return api('/me');
+}
 async function boot() {
   try {
     if (view === 'projector' && location.hash) {
@@ -677,7 +683,10 @@ async function boot() {
       history.replaceState(null, '', location.pathname + location.search);
       await api('/auth/projector', { token });
     }
-    const me = await (view === 'participant' ? api('/auth/reconnect', {}) : api('/me'));
+    const me = await (view === 'participant' ? api('/auth/reconnect', {}) : api('/me')).catch(error => {
+      if (view === 'projector' && error.code === 'UNAUTHENTICATED') return openProjectionFromStudio();
+      throw error;
+    });
     const expected = { participant:'PARTICIPANT', presenter:'PRESENTER', projector:'PROJECTOR' }[view];
     if (me.role !== expected) { login(); if (view !== 'participant') showNotice('Usa otro perfil o cierra el acceso actual para cambiar de rol.', 'warning'); return; }
     if(view === 'participant') {
@@ -695,19 +704,26 @@ async function boot() {
 }
 let projectorRefreshBusy=false;
 async function syncProjector(){
-  if(view!=='projector'||!sessionId||projectorRefreshBusy)return;
+  if(view!=='projector'||projectorRefreshBusy)return;
   projectorRefreshBusy=true;
   try {
+    if (!sessionId) {
+      const me = await openProjectionFromStudio();
+      sessionId = me.sessionId;
+      try { await connect(); }
+      catch (error) { sessionId = null; throw error; }
+      return;
+    }
     const next=await api(`/sessions/${sessionId}/state`);
     if(!current||next.serverTime>current.serverTime)render(next);
     online=true;setConnection('En vivo · Servidor conectado');
   } catch { /* EventSource conserva la reconexión y recuperación de acceso. */ }
   finally{projectorRefreshBusy=false;}
 }
-if(view==='projector'){
-  setInterval(syncProjector,5000);
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncProjector();});
-  window.addEventListener('focus',syncProjector);
-}
 window.addEventListener('online', () => { if(sessionId) refresh().catch(()=>{}); });
-boot();
+boot().then(() => {
+  if (view !== 'projector') return;
+  setInterval(syncProjector, 5000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) syncProjector(); });
+  window.addEventListener('focus', syncProjector);
+});
