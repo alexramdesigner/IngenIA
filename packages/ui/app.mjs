@@ -1,3 +1,4 @@
+import '/packages/ui/ambient.mjs';
 import { WORKSHOP_SESSION, WORKSHOP_DATE, WORKSHOP_TIME } from '/packages/shared/workshop-session.mjs';
 import { createNotifier } from '/packages/ui/notifications.mjs';
 import { mountPrototypePreview } from '/packages/ui/prototype-preview.mjs';
