@@ -16,7 +16,7 @@ body[data-view=participant][data-screen=login] main{max-width:420px;padding:12px
 .join-intro{padding:0 8px 18px}
 body[data-view=participant] .join-intro h1{font-size:32px;line-height:1.15;font-weight:800;letter-spacing:-1px;margin:10px 0 12px;color:#fff}
 body[data-view=participant] .workshop-title{display:flex;gap:12px;align-items:center;font-size:15px;line-height:1.25;margin:0;color:#f1faff;font-weight:650}
-.workshop-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,var(--student-lime),var(--student-brand));color:var(--student-green);font-size:26px;box-shadow:0 2px 0 #071c2a}
+.workshop-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,var(--ucund-turquoise),var(--accent-bright));color:var(--student-green);font-size:26px;box-shadow:0 2px 0 #071c2a}
 .join-card{background:#ffffff;border:1.5px solid #c5dce8;border-radius:16px;padding:12px 18px 16px;color:var(--student-ink);box-shadow:0 8px 24px #05152133;color-scheme:light}
 body[data-view=participant] .join-field{display:flex;gap:12px;align-items:center;min-height:70px;padding:12px 0}
 .field-icon{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;width:23px;color:var(--student-brand);font-size:26px;font-weight:700;line-height:1}

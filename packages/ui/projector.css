@@ -105,21 +105,21 @@ body[data-view=projector] #notice{display:none}
 #projection-stage .pw-intro h1{display:flex;flex-direction:column;margin:0}
 #projection-stage .pw-hello{font-size:58px;line-height:1.1;font-weight:800;letter-spacing:-.02em;margin-bottom:10px}
 #projection-stage .pw-title{font-size:74px;line-height:1.15;font-weight:800;letter-spacing:-.025em;white-space:normal;overflow-wrap:break-word}
-#projection-stage .pw-highlight{position:relative;display:inline-block;white-space:nowrap;background:linear-gradient(90deg,var(--pj-yellow) 0%,var(--pj-lime) 50%,var(--pj-green) 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+#projection-stage .pw-highlight{position:relative;display:inline-block;white-space:nowrap;background:linear-gradient(90deg,var(--ucund-turquoise),var(--accent-bright) 55%,#21b6cf);-webkit-background-clip:text;background-clip:text;color:transparent}
 #projection-stage .pw-swoosh{position:absolute;left:0;bottom:-10px;width:70%;height:22px;color:var(--accent-bright);filter:drop-shadow(0 0 6px rgba(25,132,144,.4))}
 #projection-stage .pw-lead{max-width:1050px;margin:30px 0 38px;color:#cde0eb;font-size:27px;line-height:1.45}
 #projection-stage .pw-steps{list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 24px;margin:0;padding:0}
 #projection-stage .pw-steps li{display:flex;align-items:center;gap:16px;min-height:124px;padding:16px 20px 16px 22px;border:1.5px solid rgba(25,132,144,.4);border-radius:22px;background:linear-gradient(135deg,rgba(23,104,120,.9),rgba(16,55,71,.95));box-shadow:0 0 22px rgba(25,132,144,.15),inset 0 1px 0 #ffffff12;font-size:23px;line-height:1.35;color:#edf7fc}
 #projection-stage .pw-steps strong{color:var(--accent-bright);font-weight:750}
-#projection-stage .pw-step-number{display:grid;place-items:center;flex:none;width:56px;height:56px;border-radius:50%;background:linear-gradient(145deg,var(--pj-yellow),var(--pj-lime));color:#103747;font-size:28px;font-weight:800;box-shadow:0 0 18px rgba(25,132,144,.35)}
+#projection-stage .pw-step-number{display:grid;place-items:center;flex:none;width:56px;height:56px;border-radius:50%;background:linear-gradient(145deg,var(--ucund-turquoise),#21b6cf);color:#103747;font-size:28px;font-weight:800;box-shadow:0 0 18px rgba(25,132,144,.35)}
 #projection-stage .pw-step-icon{display:grid;place-items:center;flex:none;width:68px;height:68px;border-radius:50%;border:1.5px solid #ffffff1f;background:#071c2a}
 #projection-stage .pw-step-icon .ui-icon{width:34px;height:34px;color:#f1faff}
 #projection-stage .pw-step-text{flex:1;min-width:0}
 #projection-stage .pw-step-caret{flex:none;color:var(--accent-bright)}
 #projection-stage .pw-step-caret .ui-icon{width:24px;height:24px}
-#projection-stage .pw-access{display:flex;flex-direction:column;align-items:center;align-self:center;margin:0;padding:34px 38px 30px;border:2px solid var(--pj-lime);border-radius:30px;background:linear-gradient(165deg,rgba(23,104,120,.95),rgba(16,55,71,.95) 55%,rgba(7,28,42,.95));box-shadow:0 0 40px rgba(25,132,144,.2),0 30px 80px #0008,inset 0 0 0 1px rgba(25,132,144,.2);text-align:center;box-sizing:border-box}
+#projection-stage .pw-access{display:flex;flex-direction:column;align-items:center;align-self:center;margin:0;padding:34px 38px 30px;border:2px solid var(--accent-bright);border-radius:30px;background:linear-gradient(165deg,rgba(23,104,120,.95),rgba(16,55,71,.95) 55%,rgba(7,28,42,.95));box-shadow:0 0 40px rgba(25,132,144,.2),0 30px 80px #0008,inset 0 0 0 1px rgba(25,132,144,.2);text-align:center;box-sizing:border-box}
 #projection-stage .pw-access-title{margin:0 0 22px;font-size:30px;font-weight:800}
-#projection-stage .pw-qr{width:420px;height:420px;padding:10px;border-radius:26px;background:linear-gradient(145deg,var(--pj-yellow),var(--pj-lime));box-shadow:0 0 50px rgba(25,132,144,.4);animation:pw-glow 4s ease-in-out infinite alternate}
+#projection-stage .pw-qr{width:420px;height:420px;padding:10px;border-radius:26px;background:linear-gradient(145deg,var(--ucund-turquoise),#21b6cf);box-shadow:0 0 50px rgba(25,132,144,.4);animation:pw-glow 4s ease-in-out infinite alternate}
 #projection-stage .pw-qr .qr-code{display:block;width:100%;height:100%;border-radius:18px;background:#fff}
 #projection-stage .pw-url{margin:26px 0 6px;color:var(--accent-bright);font-size:40px;font-weight:800;letter-spacing:.005em}
 #projection-stage .pw-caption{margin:0;color:#d7e8f1;font-size:22px}
