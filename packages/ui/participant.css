@@ -5,7 +5,7 @@ body[data-view=participant] .institutional-logo{width:190px;margin:0}
 body[data-view=participant] .brand-lockup{gap:18px;flex-direction:row;flex-wrap:nowrap}
 body[data-view=participant] .brand-lockup strong{font-size:20px;padding-left:18px}
 body[data-view=participant] .badge{font-size:11px;background:#103747;color:var(--accent-bright);border:1px solid var(--student-brand)}
-body[data-view=participant] #connection{font-size:12px;color:#c2dce9}
+body[data-view=participant] #connection{color:#c2dce9}
 body[data-view=participant] main{max-width:960px;padding-top:16px}
 body[data-view=participant][data-screen=login] header{display:block;max-width:420px;padding:32px 28px 12px}
 body[data-view=participant][data-screen=login] .institutional-logo{width:190px;height:auto}
@@ -135,7 +135,7 @@ body[data-view=participant] .activity-connection{font-size:11px;line-height:1.4;
 body[data-view=participant] .student-greeting .student-role-label{margin:0 0 5px;color:#d4f1f7;font-size:13px}
 .student-role-label strong{font-weight:750}
 
-body[data-view=participant] .platform-footer .footer-connection{margin-left:auto;color:var(--accent-bright);font-size:12px;text-align:right}
+body[data-view=participant] .platform-footer .footer-connection{margin-left:auto;color:var(--accent-bright);font-size:10px;text-align:right}
 body[data-view=participant][data-screen=login] .platform-footer .footer-connection{display:none}
 @media(max-width:600px){.platform-footer .footer-details{flex-basis:100%}}
 
