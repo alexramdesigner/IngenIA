@@ -131,6 +131,10 @@ export function createApp(options = {}) {
     const result = { ...s, statisticsCode: snap.codes.statistics_code, serverTime: Date.now(), permissions: permissions(s, actor.role), role: actor.role, summary, actorId: actor.id };
     if (['PRESENTER','PROJECTOR'].includes(actor.role)) { result.teamReview = snap.review; result.questionProjection=once('questionProjection',()=>questionProjection(id)); }
     if (actor.role === 'PROJECTOR') {
+      // Compatibilidad con proyectores abiertos antes de incorporar preguntas:
+      // conservan el visor de intervenciones y escuchan team.review.updated.
+      const question=result.questionProjection;
+      if(question.visible)result.teamReview={visible:true,version:question.version,teamName:question.fullName||question.teamName||'Participante',phase:question.phase,memberCount:1,title:'Pregunta del público',pages:[question.content],page:0};
       result.incidentShare = once('projectorIncident', () => projectorIncident(share, share.visible ? teams.find(t => t.id === share.teamId)?.name : null));
       // Auditorio: solo nombre del equipo y fases entregadas, sin integrantes ni contenido.
       result.leaderboard = once('leaderboard', () => teams.map(t => ({ name: t.name, completed: delivered(t.project).length })).sort((a, b) => b.completed - a.completed || a.name.localeCompare(b.name, 'es')));
@@ -376,7 +380,7 @@ export function createApp(options = {}) {
             saveQuestionProjection(id,next);
             return state(id,actor);
           });
-          emit(id,'question.projection.updated','PRESENTER');emit(id,'question.projection.updated','PROJECTOR');
+          emit(id,'question.projection.updated','PRESENTER');emit(id,'team.review.updated','PROJECTOR');
           return json(res,200,result);
         }
         if (route === 'questions' && req.method === 'POST') {

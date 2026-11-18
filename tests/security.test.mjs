@@ -1022,11 +1022,14 @@ test('Preguntas en proyector: selección explícita, privacidad, sincronización
   const shared=await h.request('/sessions/tarde/question-projection',payload,h.presenter);
   assert.equal(shared.status,200);
   const event=new TextDecoder().decode((await reader.read()).value);
-  assert.match(event,/event: question.projection.updated/);
+  assert.match(event,/event: team.review.updated/);
   assert.match(event,/Cómo comprobamos/);
   const projected=(await getProjector()).questionProjection;
   assert.equal(projected.id,id);assert.equal(projected.visible,true);
   assert.equal(projected.content,staff.questions[0].content);
+  const legacy=(await getProjector()).teamReview;
+  assert.equal(legacy.visible,true);assert.deepEqual(legacy.pages,[projected.content]);
+  assert.equal(legacy.title,'Pregunta del público');
   assert.equal(projected.email,undefined);assert.equal(projected.actor_id,undefined);
   assert.equal((await h.request('/sessions/tarde/state',null,h.participant)).body.questionProjection,undefined);
   assert.equal((await h.request('/sessions/tarde/question-projection',{action:'HIDE',expectedVersion:0},h.presenter)).status,409);

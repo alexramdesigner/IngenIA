@@ -674,10 +674,9 @@ async function boot() {
       } else {
         let me = null;
         try { me = await api('/me'); } catch {}
-        if (!me || me.role !== 'PROJECTOR') {
-          const params = new URLSearchParams(location.search);
-          const targetSession = params.get('session') || 'tarde';
-          await api('/auth/projector', { sessionId: targetSession });
+        const targetSession = new URLSearchParams(location.search).get('session');
+        if (!me || me.role !== 'PROJECTOR' || (targetSession && me.sessionId !== targetSession)) {
+          await api('/auth/projector', { sessionId: targetSession || 'tarde' });
         }
       }
     }
@@ -696,6 +695,22 @@ async function boot() {
     }
     sessionId = me.sessionId; await connect();
   } catch(error) { login(); if(error.code && error.code !== 'UNAUTHENTICATED' && view !== 'projector') showNotice(error.message, 'error'); }
+}
+let projectorRefreshBusy=false;
+async function syncProjector(){
+  if(view!=='projector'||!sessionId||projectorRefreshBusy)return;
+  projectorRefreshBusy=true;
+  try {
+    const next=await api(`/sessions/${sessionId}/state`);
+    if(!current||next.serverTime>current.serverTime)render(next);
+    online=true;setConnection('En vivo · Servidor conectado');
+  } catch { /* EventSource conserva la reconexión y recuperación de acceso. */ }
+  finally{projectorRefreshBusy=false;}
+}
+if(view==='projector'){
+  setInterval(syncProjector,5000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncProjector();});
+  window.addEventListener('focus',syncProjector);
 }
 window.addEventListener('online', () => { if(sessionId) refresh().catch(()=>{}); });
 boot();
