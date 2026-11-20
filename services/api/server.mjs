@@ -165,6 +165,8 @@ export function createApp(options = {}) {
       result.profile = db.prepare('SELECT full_name AS fullName,email,team_role AS teamRole FROM participant_profiles WHERE identity_id=?').get(actor.id);
       result.team = { ...team, memberCount: memberCount(team.id), maxMembers: MAX_TEAM_MEMBERS };
       const note = db.prepare('SELECT content,version,updated_at AS updatedAt FROM participant_notes WHERE identity_id=? AND session_id=?').get(actor.id, id);
+      const attendance = db.prepare('SELECT confirmed_at AS confirmedAt FROM participant_attendance WHERE identity_id=? AND session_id=?').get(actor.id,id);
+      result.attendance = { confirmedAt: attendance?.confirmedAt ?? null, method: 'external_link_opened' };
       result.note = note ?? { content: '', version: 0, updatedAt: null };
       result.incidents = once(`incidents:${team.id}`, () => participantIncidents(snap.incidents.filter(a => a.teamId === team.id), s));
     }
@@ -198,6 +200,20 @@ export function createApp(options = {}) {
       catch { c.res.end(); clients.delete(c); }
     }
   }
+  function chatMessage(row) {
+    const parent=row.reply_to ? db.prepare('SELECT id,author,content FROM team_chat WHERE id=? AND team_id=? AND phase=?').get(row.reply_to,row.team_id,row.phase) : null;
+    return {id:row.id,phase:row.phase,actorId:row.actor_id,author:row.author,content:row.content,createdAt:row.created_at,
+      reply:parent ? {...parent,content:parent.content.slice(0,180)} : null,
+      likes:db.prepare('SELECT actor_id FROM team_chat_likes WHERE message_id=? ORDER BY actor_id').all(row.id).map(r=>r.actor_id)};
+  }
+  function emitChat(id,teamId,message) {
+    for (const c of clients) if (c.actor.session_id===id && c.actor.role==='PARTICIPANT' && c.actor.team_id===teamId) {
+      if (c.expires<=Date.now()) { c.res.end(); clients.delete(c); continue; }
+      if (c.res.writableLength>maxPendingStreamBytes) { c.res.destroy(); continue; }
+      try { c.res.write(`event: team.chat\ndata: ${JSON.stringify(message)}\n\n`); }
+      catch { c.res.end(); clients.delete(c); }
+    }
+  }
   // Cambios de un equipo: solo lo reciben sus integrantes, Studio y el proyector.
   const teamAudience = teamId => c => c.actor.role !== 'PARTICIPANT' || c.actor.team_id === teamId;
   // Ráfagas de entregas: el equipo recibe su cambio al instante; Studio y proyector, una sola
@@ -227,7 +243,7 @@ export function createApp(options = {}) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self'; img-src 'self' data:; frame-src 'none'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self'; img-src 'self' data:; frame-src https://forms.cloud.microsoft https://forms.office.com https://plataforma.ucundinamarca.edu.co; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     try {
       const url = new URL(req.url, 'http://localhost');
       const path = url.pathname.replace(/^\/api\/(studio|projection)(?=\/)/, '/api');
@@ -368,6 +384,14 @@ export function createApp(options = {}) {
         if (participant) res.appendHeader('Set-Cookie', recoveryCookie('', 0));
         return json(res, 200, { ok: true });
       }
+      if (path === '/api/attendance/open' && req.method === 'POST') {
+        const actor = authenticate(req);
+        authorize(actor,actor.session_id,'PARTICIPANT');
+        const b = await body(req);
+        if (b.opened !== true) throw new ApiError(400,'ATTENDANCE_OPEN_REQUIRED');
+        db.prepare('INSERT OR IGNORE INTO participant_attendance VALUES (?,?,?)').run(actor.id,actor.session_id,Date.now());
+        return json(res,200,state(actor.session_id,actor));
+      }
       if (path === '/api/notes' && req.method === 'POST') {
         const actor = authenticate(req);
         authorize(actor,actor.session_id,'PARTICIPANT');
@@ -387,7 +411,7 @@ export function createApp(options = {}) {
       if (path === '/api/me' && req.method === 'GET') {
         const a = authenticate(req); return json(res, 200, { sessionId: a.session_id, role: a.role });
       }
-      const match = new RegExp(`^/api/sessions/([a-z]+)/(state|events|questions|question-projection|prerequisite|export|phase-command|phase-notes|team-review|team-admin|deliverable-review|incidents|incident-response|reset|projector-access|report|actions/(${Object.keys(ACTION_PHASE).join('|')}))$`).exec(path);
+      const match = new RegExp(`^/api/sessions/([a-z]+)/(state|events|team-chat|team-chat-like|questions|question-projection|prerequisite|export|phase-command|phase-notes|team-review|team-admin|deliverable-review|incidents|incident-response|reset|projector-access|report|actions/(${Object.keys(ACTION_PHASE).join('|')}))$`).exec(path);
       if (match) {
         const [, id, route, action] = match;
         const actor = authenticate(req); authorize(actor, id);
@@ -451,6 +475,51 @@ export function createApp(options = {}) {
           // El contador llega a todos; cada participante recibe solo sus propias preguntas.
           emit(id,'question.updated',c => ['PRESENTER','PARTICIPANT'].includes(c.actor.role));
           return json(res,200,state(id,actor));
+        }
+        if (route === 'team-chat-like' && req.method === 'POST') {
+          authorize(actor,id,'PARTICIPANT');
+          const b=await body(req);
+          if (!Number.isSafeInteger(b.messageId) || typeof b.liked!=='boolean') throw new ApiError(400,'INVALID_CHAT_MESSAGE');
+          const message=transaction(db,()=>{
+            const row=db.prepare('SELECT * FROM team_chat WHERE id=? AND session_id=? AND team_id=?').get(b.messageId,id,actor.team_id);
+            if (!row) throw new ApiError(404,'CHAT_MESSAGE_NOT_FOUND');
+            if (getSession(id).status==='FINISHED') throw new ApiError(403,'CHAT_READ_ONLY');
+            if(b.liked)db.prepare('INSERT OR IGNORE INTO team_chat_likes VALUES (?,?)').run(row.id,actor.id);
+            else db.prepare('DELETE FROM team_chat_likes WHERE message_id=? AND actor_id=?').run(row.id,actor.id);
+            return chatMessage(row);
+          });
+          emitChat(id,actor.team_id,message);
+          return json(res,200,{message});
+        }
+        if (route === 'team-chat' && ['GET','POST'].includes(req.method)) {
+          authorize(actor,id,'PARTICIPANT');
+          const b = req.method === 'POST' ? await body(req) : null;
+          const phase = b?.phase ?? Number(url.searchParams.get('phase'));
+          if (!Number.isInteger(phase) || phase < 1 || phase > PHASE_COUNT) throw new ApiError(400,'INVALID_PHASE');
+          if (b) {
+            if (typeof b.content !== 'string' || !b.content.trim() || b.content.trim().length > 2000 || !text(b.clientId,128)) throw new ApiError(400,'INVALID_CHAT_MESSAGE');
+            const message = transaction(db,()=>{
+              const old = db.prepare('SELECT * FROM team_chat WHERE actor_id=? AND client_id=?').get(actor.id,b.clientId);
+              if (old) {
+                if (old.phase !== phase || old.content !== b.content.trim() || old.reply_to !== (b.replyTo ?? null)) throw new ApiError(409,'IDEMPOTENCY_CONFLICT');
+                return old;
+              }
+              if (getSession(id).status === 'FINISHED') throw new ApiError(403,'CHAT_READ_ONLY');
+              if (b.replyTo != null && (!Number.isSafeInteger(b.replyTo) || !db.prepare('SELECT id FROM team_chat WHERE id=? AND session_id=? AND team_id=? AND phase=?').get(b.replyTo,id,actor.team_id,phase))) throw new ApiError(404,'CHAT_MESSAGE_NOT_FOUND');
+              const last = db.prepare('SELECT created_at FROM team_chat WHERE actor_id=? ORDER BY id DESC LIMIT 1').get(actor.id);
+              if (last && Date.now()-last.created_at < 750) throw new ApiError(429,'RATE_LIMITED');
+              const profile = db.prepare('SELECT full_name FROM participant_profiles WHERE identity_id=?').get(actor.id);
+              const row = db.prepare('INSERT INTO team_chat(session_id,team_id,phase,actor_id,author,content,created_at,client_id,reply_to) VALUES (?,?,?,?,?,?,?,?,?) RETURNING *').get(id,actor.team_id,phase,actor.id,profile?.full_name || 'Integrante',b.content.trim(),Date.now(),b.clientId,b.replyTo ?? null);
+              return row;
+            });
+            const publicMessage = chatMessage(message);
+            emitChat(id,actor.team_id,publicMessage);
+            return json(res,200,{message:publicMessage});
+          }
+          const before = url.searchParams.has('before') ? Number(url.searchParams.get('before')) : Number.MAX_SAFE_INTEGER;
+          if (!Number.isSafeInteger(before) || before<1) throw new ApiError(400,'INVALID_CHAT_CURSOR');
+          const rows=db.prepare('SELECT * FROM team_chat WHERE session_id=? AND team_id=? AND phase=? AND id<? ORDER BY id DESC LIMIT 101').all(id,actor.team_id,phase,before);
+          return json(res,200,{messages:rows.slice(0,100).reverse().map(chatMessage),hasMore:rows.length>100});
         }
         if (route === 'state' && req.method === 'GET') return json(res, 200, state(id, actor));
         if (route === 'report' && req.method === 'GET') {
@@ -657,7 +726,7 @@ export function createApp(options = {}) {
           const participants = db.prepare("SELECT id FROM identities WHERE session_id=? AND role='PARTICIPANT'").all(id).map(r => r.id);
           const result = transaction(db, () => {
             const old = getSession(id);
-            for (const table of ['question_projections', 'live_questions', 'participant_notes', 'participant_profiles']) db.prepare(`DELETE FROM ${table} WHERE session_id=?`).run(id);
+            for (const table of ['question_projections', 'live_questions', 'participant_attendance', 'participant_notes', 'participant_profiles']) db.prepare(`DELETE FROM ${table} WHERE session_id=?`).run(id);
             db.prepare("DELETE FROM tokens WHERE identity_id IN (SELECT id FROM identities WHERE session_id=? AND role='PARTICIPANT')").run(id);
             db.prepare("DELETE FROM identities WHERE session_id=? AND role='PARTICIPANT'").run(id);
             for (const table of ['incident_assignments', 'incident_shares', 'team_names', 'team_reviews', 'idempotency', 'events', 'phase_actions']) db.prepare(`DELETE FROM ${table} WHERE session_id=?`).run(id);
@@ -720,7 +789,7 @@ export function createApp(options = {}) {
                 db.prepare('UPDATE teams SET data=? WHERE id=?').run(JSON.stringify(team), row.id);
               }
             }
-            if(['START','ADVANCE','REOPEN','ITERATE','FINISH'].includes(b.action)){
+            if(['START','BEGIN_PHASE','ADVANCE','REOPEN','ITERATE','FINISH'].includes(b.action)){
               hideQuestionProjection(id);
               const review=teamReview(id);
               db.prepare('INSERT INTO team_reviews VALUES (?,?) ON CONFLICT(session_id) DO UPDATE SET data=excluded.data').run(id,JSON.stringify({visible:false,version:review.version+1}));
@@ -730,7 +799,7 @@ export function createApp(options = {}) {
             db.prepare('INSERT INTO phase_actions(session_id,actor_id,version,data,timestamp) VALUES (?,?,?,?,?)').run(id, actor.id, next.version, JSON.stringify({ action: b.action, fromPhase: old.activePhase, toPhase: next.activePhase, fromStatus: old.status, toStatus: next.status, reason: b.reason ?? null }), Date.now());
             const response = state(id, actor);
             db.prepare('INSERT INTO idempotency VALUES (?,?,?,?,?)').run(id, actor.id, b.idempotencyKey, request, JSON.stringify(response));
-            event = ({ PRACTICE:'phase.practice', REFLECT: 'phase.reflection', CLOSE: 'phase.completed', START: 'session.started', ADVANCE: 'phase.opened', REOPEN: 'phase.opened', ITERATE: 'phase.opened', PAUSE: 'session.paused', RESUME: 'session.resumed', FINISH: 'session.finished', EXTEND: 'timer.updated' })[b.action];
+            event = ({ PRACTICE:'phase.practice', REFLECT: 'phase.reflection', CLOSE: 'phase.completed', START: 'session.started', BEGIN_PHASE: 'phase.opened', ADVANCE: 'phase.opened', REOPEN: 'phase.opened', ITERATE: 'phase.opened', PAUSE: 'session.paused', RESUME: 'session.resumed', FINISH: 'session.finished', EXTEND: 'timer.updated' })[b.action];
             return response;
           });
           if (event) {

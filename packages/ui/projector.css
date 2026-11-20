@@ -149,3 +149,10 @@ body[data-view=projector] #notice{display:none}
 #projection-stage .projected-question h1 span{display:block;margin-top:12px;font-size:26px;color:var(--muted);font-weight:500}
 #projection-stage .projected-question .projected-question-text{font-size:48px;line-height:1.4;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
 #projection-stage .projected-question .projected-question-text.is-long{font-size:36px;line-height:1.35}
+
+#projection-stage .pj-introduction{display:flex;flex-direction:column;justify-content:center;box-sizing:border-box;min-height:760px;padding:40px 70px;border-radius:28px;background:linear-gradient(120deg,#083645e8,#071c2a99);border:1px solid var(--pj-line)}
+#projection-stage .pj-intro-eyebrow{margin:0 0 22px;color:var(--accent-bright);font-size:24px;font-weight:750;text-transform:uppercase;letter-spacing:.12em}
+#projection-stage .pj-introduction h1{max-width:1450px;margin:0;font-size:70px;line-height:1.15;color:#f1faff}
+#projection-stage .pj-intro-subtitle{margin:28px 0 44px;font-size:32px;line-height:1.4;color:#cde0eb}
+#projection-stage .pj-introduction ul{display:grid;gap:32px;margin:0;padding-left:40px;font-size:36px;line-height:1.4;color:#edf7fc}
+#projection-stage .pj-introduction li::marker{color:var(--accent-bright)}

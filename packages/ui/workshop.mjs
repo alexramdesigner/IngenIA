@@ -50,6 +50,7 @@ function prerequisiteRecovery(project, editable, busy) {
 }
 
 export function workshopActivity(s, { draft, online, busy, generationMessage = '' }) {
+  if (s.introduction && s.status !== 'FINISHED') return '<section class="card"><h2>Introducción</h2><p>Escucha al conferencista. Enseguida comenzamos la fase 1.</p></section>';
   const p = s.team.project ?? {};
   const phase = PHASES.find(item => item.id === s.activePhase);
   const team = `<p class="muted">${esc(s.team.name)} · ${s.team.memberCount}/${s.team.maxMembers} integrantes · Trabajo compartido del equipo</p>`;

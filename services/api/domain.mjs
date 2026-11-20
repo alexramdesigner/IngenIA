@@ -21,9 +21,12 @@ export function transition(s, command, now = Date.now()) {
   switch (command.action) {
     case 'START':
       if (s.status !== 'WAITING') throw new ApiError(409, 'INVALID_TRANSITION');
-      stage('THEORY', { status: 'ACTIVE', activePhase: 1, iteration: 1 }); break;
+      stage('THEORY', { status: 'ACTIVE', activePhase: 1, iteration: 1, introduction: command.introduction === true }); break;
+    case 'BEGIN_PHASE':
+      if (s.status !== 'ACTIVE' || !s.introduction) throw new ApiError(409, 'INVALID_TRANSITION');
+      stage('THEORY', { introduction: false }); break;
     case 'PRACTICE':
-      if (s.status !== 'ACTIVE' || s.phaseStage !== 'THEORY') throw new ApiError(409, 'INVALID_TRANSITION');
+      if (s.status !== 'ACTIVE' || s.introduction || s.phaseStage !== 'THEORY') throw new ApiError(409, 'INVALID_TRANSITION');
       stage('PRACTICE', { deadline: now + (command.seconds ?? practiceSeconds(s.activePhase)) * 1000 }); break;
     case 'REFLECT':
       if (s.status !== 'ACTIVE' || s.phaseStage !== 'PRACTICE') throw new ApiError(409, 'INVALID_TRANSITION');
@@ -32,11 +35,11 @@ export function transition(s, command, now = Date.now()) {
       if (s.status !== 'ACTIVE' || s.phaseStage !== 'REFLECTION') throw new ApiError(409, 'INVALID_TRANSITION');
       stage('CLOSED'); break;
     case 'ADVANCE':
-      if (s.status !== 'ACTIVE' || s.activePhase >= PHASE_COUNT) throw new ApiError(409, 'INVALID_TRANSITION');
-      stage('THEORY', { activePhase: s.activePhase + 1 }); break;
+      if (s.status !== 'ACTIVE' || s.introduction || s.activePhase >= PHASE_COUNT) throw new ApiError(409, 'INVALID_TRANSITION');
+      stage('THEORY', { introduction: false, activePhase: s.activePhase + 1 }); break;
     case 'REOPEN':
       if (!command.confirm || !live || !Number.isInteger(command.phase) || command.phase < 1 || command.phase > PHASE_COUNT) throw new ApiError(400, 'CONFIRMATION_REQUIRED');
-      stage('THEORY', { status: 'ACTIVE', activePhase: command.phase }); break;
+      stage('THEORY', { introduction: false, status: 'ACTIVE', activePhase: command.phase }); break;
     case 'ITERATE':
       // Verificación → Construcción: nueva iteración directa a práctica con el prompt ajustado.
       if (!command.confirm) throw new ApiError(400, 'CONFIRMATION_REQUIRED');

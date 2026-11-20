@@ -1133,3 +1133,173 @@ test('Preguntas: máximo cinco por fase y una por participante, incluso con env�
   const night=await h.login('noche');await h.command('START',{},night,'noche');
   assert.equal((await h.request('/sessions/noche/state',null,night)).body.questionQuota.used,0);
 });
+
+test('Asistencia: apertura persistente y separada por participante', async t => {
+  const h = await harness(t);
+  const initial = await h.request('/sessions/tarde/state', null, h.participant);
+  assert.equal(initial.body.attendance.confirmedAt, null);
+  assert.equal((await h.request('/attendance/open', {opened:false}, h.participant)).status, 400);
+  assert.equal((await h.request('/attendance/open', {opened:true}, h.presenter)).status, 403);
+  assert.equal((await h.request('/attendance/open', {opened:true})).status, 401);
+  const confirmed = await h.request('/attendance/open', {opened:true}, h.participant);
+  assert.equal(confirmed.status, 200);
+  assert.ok(confirmed.body.attendance.confirmedAt > 0);
+  assert.equal(confirmed.body.attendance.method, 'external_link_opened');
+  const repeated = await h.request('/attendance/open', {opened:true}, h.participant);
+  assert.equal(repeated.body.attendance.confirmedAt, confirmed.body.attendance.confirmedAt);
+  const restored = await h.request('/sessions/tarde/state', null, h.participant);
+  assert.equal(restored.body.attendance.confirmedAt, confirmed.body.attendance.confirmedAt);
+  const other = await h.request('/auth/join', {sessionId:'tarde', name:'Equipo B'});
+  assert.equal((await h.request('/sessions/tarde/state', null, other.cookie)).body.attendance.confirmedAt, null);
+});
+
+test('Studio inicia la introducción y el proyector recibe la fase 1 solo al continuar', async t => {
+  const h = await harness(t);
+  const access = await h.request('/studio/sessions/tarde/projector-access', {}, h.presenter);
+  const projector = (await h.request('/projection/auth/projector', {token:access.body.token})).cookie;
+  const command = async action => {
+    const s = (await h.request('/studio/sessions/tarde/state', null, h.presenter)).body;
+    return h.request('/studio/sessions/tarde/phase-command', {action, introduction:true, expectedVersion:s.version, idempotencyKey:randomUUID()}, h.presenter);
+  };
+  const started = await command('START');
+  assert.equal(started.status, 200);
+  assert.equal(started.body.introduction, true);
+  assert.equal(started.body.deadline, null);
+  const projected = await h.request('/projection/sessions/tarde/state', null, projector);
+  assert.equal(projected.body.introduction, true);
+  assert.equal(projected.body.version, started.body.version);
+  assert.equal((await command('PRACTICE')).status, 409);
+  assert.equal((await command('ADVANCE')).status, 409);
+  assert.equal((await h.act('discovery')).status, 403);
+  await command('PAUSE');
+  assert.equal((await command('BEGIN_PHASE')).status, 409);
+  await command('RESUME');
+  const phase = await command('BEGIN_PHASE');
+  assert.equal(phase.status, 200);
+  assert.equal(phase.body.introduction, false);
+  assert.equal(phase.body.activePhase, 1);
+  assert.equal(phase.body.phaseStage, 'THEORY');
+  assert.equal((await command('PRACTICE')).status, 200);
+  assert.equal((await h.act('discovery')).status, 200);
+  assert.equal((await h.request('/projection/sessions/tarde/state', null, projector)).body.introduction, false);
+  // Un acceso de proyección revocado se puede reemplazar desde Studio.
+  await h.request('/projection/auth/logout', {}, projector);
+  assert.equal((await h.request('/projection/me', null, projector)).status, 401);
+  const renewed = await h.request('/studio/sessions/tarde/projector-access', {}, h.presenter);
+  const reconnected = await h.request('/projection/auth/projector', {token:renewed.body.token});
+  assert.equal((await h.request('/projection/me', null, reconnected.cookie)).body.role, 'PROJECTOR');
+});
+
+test('Chat del equipo: privado, separado por fase, disponible en teoría y sin cambiar entregas', async t => {
+  const h=await harness(t);
+  const same=(await h.request('/auth/join',{sessionId:'tarde',name:'Equipo A',fullName:'Segunda Integrante'})).cookie;
+  const other=(await h.request('/auth/join',{sessionId:'tarde',name:'Equipo B'})).cookie;
+  const access=await h.request('/sessions/tarde/projector-access',{},h.presenter);
+  const projector=(await h.request('/auth/projector',{token:access.body.token})).cookie;
+  const route='/sessions/tarde/team-chat';
+  const payload={phase:1,content:'¿Quién usará la aplicación? <script>alert(1)</script>',clientId:randomUUID()};
+  const baseline=(await h.request('/sessions/tarde/state',null,h.participant)).body;
+  assert.equal((await h.request(route+'?phase=1')).status,401);
+  for(const role of [h.presenter,projector]) {
+    assert.equal((await h.request(route+'?phase=1',null,role)).status,403);
+    assert.equal((await h.request(route,payload,role)).status,403);
+  }
+  const first=await h.request(route,payload,h.participant);
+  assert.equal(first.status,200);
+  assert.equal(first.body.message.content,payload.content);
+  assert.equal(first.body.message.author,'Participante de prueba');
+  const duplicate=await h.request(route,payload,h.participant);
+  assert.equal(duplicate.body.message.id,first.body.message.id);
+  assert.equal((await h.request(route,{...payload,content:'Cambio'},h.participant)).status,409);
+  assert.equal((await h.request(route,{...payload,clientId:randomUUID()},h.participant)).status,429);
+  assert.equal((await h.request(route+'?phase=1',null,same)).body.messages.length,1);
+  assert.equal((await h.request(route+'?phase=1',null,other)).body.messages.length,0);
+  assert.equal((await h.request(route+'?phase=2',null,same)).body.messages.length,0);
+  for(const phase of ['0','7','NaN','1.1'])assert.equal((await h.request(route+'?phase='+phase,null,h.participant)).status,400);
+  for(const content of ['', '   ', 'a'.repeat(2001)])assert.equal((await h.request(route,{phase:1,content,clientId:randomUUID()},h.participant)).status,400);
+  assert.equal((await h.request(route+'?phase=1&before=no',null,same)).status,400);
+  const after=(await h.request('/sessions/tarde/state',null,h.participant)).body;
+  assert.equal(after.version,baseline.version);
+  assert.deepEqual(after.team.project,baseline.team.project);
+  await h.request('/sessions/tarde/phase-command',{action:'START',introduction:true,expectedVersion:after.version,idempotencyKey:randomUUID()},h.presenter);
+  const second=await h.request(route,{phase:2,content:'Tres criterios observables.',clientId:randomUUID()},same);
+  assert.equal(second.status,200);
+  assert.equal((await h.request(route+'?phase=1',null,same)).body.messages.length,1);
+  assert.equal((await h.request(route+'?phase=2',null,h.participant)).body.messages[0].author,'Segunda Integrante');
+  await h.command('FINISH',{confirm:true});
+  assert.equal((await h.request(route,{phase:1,content:'Final',clientId:randomUUID()},other)).status,403);
+  assert.equal((await h.request(route+'?phase=1',null,same)).body.messages.length,1);
+  // El borrado de un equipo también elimina su conversación sin afectar a otros.
+  await h.request('/sessions/tarde/team-admin',{action:'REMOVE_TEAM',teamId:after.team.id},h.presenter);
+  assert.equal(h.db.prepare('SELECT COUNT(*) AS n FROM team_chat WHERE team_id=?').get(after.team.id).n,0);
+});
+
+test('Chat en vivo: solo recibe mensajes el equipo destinatario', async t => {
+  const h=await harness(t);
+  const other=(await h.request('/auth/join',{sessionId:'tarde',name:'Equipo B'})).cookie;
+  const access=await h.request('/sessions/tarde/projector-access',{},h.presenter);
+  const projector=(await h.request('/auth/projector',{token:access.body.token})).cookie;
+  const controllers=[];
+  t.after(()=>controllers.forEach(c=>c.abort()));
+  const open=async cookie=>{
+    const controller=new AbortController();controllers.push(controller);
+    const response=await fetch(h.base+'/api/sessions/tarde/events',{headers:{Cookie:cookie},signal:controller.signal});
+    const reader=response.body.getReader();await reader.read();return reader;
+  };
+  const own=await open(h.participant), outsiders=await Promise.all([other,h.presenter,projector].map(open));
+  const outsideReads=outsiders.map(reader=>reader.read());
+  const sent=await h.request('/sessions/tarde/team-chat',{phase:1,content:'Consenso privado del equipo A',clientId:randomUUID()},h.participant);
+  assert.equal(sent.status,200);
+  const decoder=new TextDecoder();
+  const update=decoder.decode((await own.read()).value);
+  assert.match(update,/event: team.chat/);assert.match(update,/Consenso privado del equipo A/);
+  // Un cambio público permite terminar las lecturas sin temporizadores de espera.
+  await h.command('START');
+  for(const read of outsideReads){const text=decoder.decode((await read).value);assert.doesNotMatch(text,/team.chat|Consenso privado/);}
+});
+
+test('Chat: historial paginado y aislamiento entre sesiones', async t => {
+  const h=await harness(t);
+  const state=(await h.request('/sessions/tarde/state',null,h.participant)).body;
+  const insert=h.db.prepare('INSERT INTO team_chat(session_id,team_id,phase,actor_id,author,content,created_at,client_id) VALUES (?,?,?,?,?,?,?,?)');
+  for(let i=0;i<105;i++)insert.run('tarde',state.team.id,1,state.actorId,'Integrante',`Mensaje ${i}`,Date.now(),randomUUID());
+  const latest=(await h.request('/sessions/tarde/team-chat?phase=1',null,h.participant)).body;
+  assert.equal(latest.messages.length,100);assert.equal(latest.hasMore,true);
+  assert.equal(latest.messages[0].content,'Mensaje 5');
+  const older=(await h.request('/sessions/tarde/team-chat?phase=1&before='+latest.messages[0].id,null,h.participant)).body;
+  assert.equal(older.messages.length,5);assert.equal(older.hasMore,false);
+  assert.equal(older.messages[0].content,'Mensaje 0');
+  const night=(await h.request('/auth/join',{sessionId:'noche',name:'Equipo A'})).cookie;
+  assert.equal((await h.request('/sessions/tarde/team-chat?phase=1',null,night)).status,403);
+  assert.equal((await h.request('/sessions/noche/team-chat?phase=1',null,night)).body.messages.length,0);
+});
+
+test('Chat: me gusta persistente por persona y respuestas limitadas al equipo y fase', async t => {
+  const h=await harness(t);
+  const same=(await h.request('/auth/join',{sessionId:'tarde',name:'Equipo A'})).cookie;
+  const other=(await h.request('/auth/join',{sessionId:'tarde',name:'Equipo B'})).cookie;
+  const route='/sessions/tarde/team-chat', like='/sessions/tarde/team-chat-like';
+  const original=(await h.request(route,{phase:1,content:'Construyamos una app para estudiantes.',clientId:randomUUID()},h.participant)).body.message;
+  const first=await h.request(like,{messageId:original.id,liked:true},same);
+  assert.equal(first.status,200);assert.equal(first.body.message.likes.length,1);
+  assert.equal((await h.request(like,{messageId:original.id,liked:true},same)).body.message.likes.length,1);
+  assert.equal((await h.request(like,{messageId:original.id,liked:true},h.participant)).body.message.likes.length,2);
+  assert.equal((await h.request(like,{messageId:original.id,liked:false},same)).body.message.likes.length,1);
+  assert.equal((await h.request(like,{messageId:original.id,liked:true},other)).status,404);
+  assert.equal((await h.request(like,{messageId:original.id,liked:true},h.presenter)).status,403);
+  const payload={phase:1,content:'Estoy de acuerdo con ese usuario.',replyTo:original.id,clientId:randomUUID()};
+  const reply=await h.request(route,payload,same);
+  assert.equal(reply.status,200);
+  assert.equal(reply.body.message.reply.id,original.id);
+  assert.equal(reply.body.message.reply.content,original.content);
+  assert.equal((await h.request(route,payload,same)).body.message.id,reply.body.message.id);
+  assert.equal((await h.request(route,{...payload,replyTo:null},same)).status,409);
+  assert.equal((await h.request(route,{...payload,phase:2,clientId:randomUUID()},other)).status,404);
+  assert.equal((await h.request(route,{...payload,clientId:randomUUID()},other)).status,404);
+  h.db.prepare('UPDATE team_chat SET created_at=created_at-1000').run();
+  assert.equal((await h.request(route,{...payload,phase:2,clientId:randomUUID()},same)).status,404);
+  const history=(await h.request(route+'?phase=1',null,same)).body.messages;
+  assert.equal(history[0].likes.length,1);assert.equal(history[1].reply.id,original.id);
+  await h.command('FINISH',{confirm:true});
+  assert.equal((await h.request(like,{messageId:original.id,liked:false},h.participant)).status,403);
+});

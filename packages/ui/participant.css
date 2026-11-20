@@ -108,9 +108,7 @@ body[data-view=participant][data-screen=login] footer{max-width:600px}
 .activity-tile .tile-notes{color:var(--student-yellow)}
 #event-notes{min-height:280px;line-height:1.6}
 .survey-card{text-align:center}
-.survey-qr{display:grid;place-items:center;width:min(100%,260px);aspect-ratio:1;margin:16px auto;padding:10px;border-radius:12px;background:#fff}
-.survey-qr img{display:block;width:100%;height:auto}
-.survey-qr .muted{color:#405865}
+.survey-frame{display:block;width:100%;height:75vh;min-height:520px;border:0;border-radius:12px;background:#fff;margin:16px 0}
 .survey-link{overflow-wrap:anywhere}
 .survey-link a{color:var(--student-yellow);font-weight:650}
 
@@ -238,3 +236,65 @@ body[data-view=participant] .deliverable-status.status-draft{color:#ffdf91;backg
 .question-quota{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #45d9e866;border-radius:12px;background:#19849022;color:#b8eef5;font-size:14px;line-height:1.5}
 .question-quota .ui-icon{flex-shrink:0;width:22px;height:22px;margin-top:2px}
 .question-quota.is-full{border-color:var(--glass-border);background:#ffffff08;color:var(--muted)}
+
+.attendance-card{max-width:720px;margin:24px auto;padding:clamp(24px,5vw,48px);text-align:center}
+.attendance-icon{display:inline-grid;place-items:center;width:72px;height:72px;border-radius:22px;background:#35d6e322;color:var(--student-yellow)}
+.attendance-icon .ui-icon{width:40px;height:40px}
+.attendance-steps{display:grid;gap:16px;max-width:500px;margin:28px auto;padding-left:28px;text-align:left;line-height:1.5}
+.attendance-steps li::marker{color:var(--student-yellow);font-weight:800}
+.attendance-card .attendance-button{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:64px;max-width:100%;box-sizing:border-box;margin:12px auto 0;padding:18px 24px;border-radius:18px;background:var(--student-yellow);color:#071c2a;font-size:clamp(18px,3vw,24px);font-weight:800;text-decoration:none;box-shadow:0 8px 28px #f1d70030}
+.attendance-button .ui-icon{width:26px;height:26px;flex-shrink:0}
+.attendance-card .attendance-button:hover{filter:brightness(1.08);transform:translateY(-2px)}
+.attendance-card .attendance-button:focus-visible{outline:3px solid #fff;outline-offset:5px}
+body[data-screen=attendance] #participant-nav{display:none}
+
+body[data-view=participant] .pj-introduction{padding:clamp(24px,5vw,48px);border:1px solid var(--glass-border);border-radius:24px;background:linear-gradient(120deg,#083645e8,#071c2a99)}
+body[data-view=participant] .pj-intro-eyebrow{margin:0 0 16px;color:var(--student-yellow);font-weight:750}
+body[data-view=participant] .pj-introduction h1{margin:0;font-size:clamp(26px,4vw,42px);line-height:1.2}
+body[data-view=participant] .pj-intro-subtitle{margin:24px 0;color:var(--muted);line-height:1.5}
+body[data-view=participant] .pj-introduction ul{display:grid;gap:20px;padding-left:24px;line-height:1.6}
+body[data-view=participant] .pj-introduction li::marker{color:var(--student-yellow)}
+
+.team-chat{position:fixed;right:20px;bottom:100px;z-index:80;max-width:calc(100vw - 24px)}
+.team-chat [hidden]{display:none!important}
+.team-chat-toggle{display:flex;align-items:center;gap:10px;box-shadow:0 8px 30px #0006;border:1px solid #39d9e3}
+.chat-unread{font-size:12px;background:var(--student-yellow);color:#071c2a;padding:2px 6px;border-radius:8px}
+.team-chat-panel{display:flex;flex-direction:column;width:390px;max-width:calc(100vw - 24px);height:min(650px,calc(100dvh - 190px));margin-bottom:12px;padding:16px;box-sizing:border-box;border:1px solid #39d9e3;border-radius:20px;background:#0a2836;box-shadow:0 16px 60px #0009;position:absolute;bottom:100%;right:0}
+.team-chat-panel header{display:flex;align-items:center;justify-content:space-between;padding:0;background:none;min-height:0}
+.team-chat-panel .chat-close{background:transparent;padding:4px 12px;font-size:26px;min-height:0}
+.chat-phase-label{font-size:13px;margin:8px 0}
+.chat-phase{margin-top:4px;width:100%;padding:8px}
+.chat-guide{font-size:13px;margin:4px 0 10px;line-height:1.5}
+.chat-guide ul{padding-left:20px;margin:8px 0}
+.chat-messages{flex:1;overflow:auto;min-height:90px;overscroll-behavior:contain}
+.chat-message{padding:10px 12px;margin:8px 10px 8px 0;border-radius:12px;background:#ffffff0d;overflow-wrap:anywhere}
+.chat-message.is-own{margin:8px 0 8px 10px;background:#16839140}
+.chat-message>div{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:#7ee3ed}
+.chat-message time{color:#a6bbc7;white-space:nowrap}
+.chat-message p{white-space:pre-wrap;margin:5px 0 0;font-size:14px;line-height:1.5}
+.chat-empty{font-size:14px;color:var(--muted);text-align:center}
+.chat-form{display:flex;align-items:end;gap:8px;margin-top:12px}
+.chat-form textarea{flex:1;min-width:0;min-height:56px;max-height:120px;margin:0;font-size:16px;padding:10px}
+.chat-form button{padding:12px;font-size:14px}
+.chat-feedback{font-size:12px;margin:6px 0 0}
+.chat-feedback:empty{display:none}
+.chat-older{padding:5px;font-size:12px}
+@media(max-width:600px){.team-chat{right:12px;bottom:88px}.team-chat-toggle{padding:10px 14px;font-size:14px}}
+.chat-message .chat-actions{display:flex;justify-content:flex-start;gap:14px;margin:8px 0 0;padding:0;border:0;background:none;width:auto;min-height:0}
+.chat-actions button{background:none;border:0;box-shadow:none;color:#a9c9d5;font-size:12px;min-height:32px;padding:4px 0;font-weight:650}
+.chat-actions button[aria-pressed=true]{color:var(--student-yellow)}
+.chat-actions button:hover{color:#fff}
+.chat-quote{border-left:3px solid #62dce5;margin:10px 0 8px;padding:6px 10px;background:#0002;font-size:12px}
+.chat-quote strong,.chat-quote span{display:block}
+.chat-quote span{color:#bed5df;white-space:pre-wrap;line-height:1.4;margin-top:4px}
+.chat-reply-preview{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-top:10px;padding:8px 10px;border-left:3px solid #62dce5;background:#ffffff09;border-radius:6px;font-size:12px}
+.chat-reply-preview>div{min-width:0}
+.chat-reply-preview strong,.chat-reply-preview span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-reply-preview span{margin-top:4px;color:#bed5df}
+.chat-reply-preview button{padding:2px 8px;background:none;font-size:22px}
+
+/* Acceso discreto al chat, sin competir con las actividades. */
+.team-chat .team-chat-toggle{gap:7px;min-height:0;padding:9px 13px;border:1px solid #6ccbd44d;border-radius:24px;background:#0a2836;color:#d5e9ef;font-size:13px;font-weight:550;box-shadow:none}
+.team-chat-toggle .ui-icon{width:18px;height:18px}
+.team-chat .team-chat-toggle:hover{background:#123c49;border-color:#6ccbd4}
+.team-chat-toggle .chat-unread{width:7px;height:7px;padding:0;border-radius:50%;font-size:0}

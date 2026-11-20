@@ -23,6 +23,9 @@ export function openStore(path, additionalSessions = []) {
     CREATE TABLE IF NOT EXISTS live_questions(id INTEGER PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), actor_id TEXT NOT NULL, content TEXT NOT NULL, phase INTEGER, created_at INTEGER NOT NULL, answered INTEGER NOT NULL DEFAULT 0);
     CREATE INDEX IF NOT EXISTS live_questions_phase ON live_questions(session_id,phase,actor_id);
     CREATE INDEX IF NOT EXISTS live_questions_session ON live_questions(session_id,id DESC);
+    CREATE TABLE IF NOT EXISTS team_chat(id INTEGER PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), team_id TEXT NOT NULL REFERENCES teams(id) ON DELETE CASCADE, phase INTEGER NOT NULL CHECK(phase BETWEEN 1 AND 6), actor_id TEXT NOT NULL, author TEXT NOT NULL, content TEXT NOT NULL, created_at INTEGER NOT NULL, client_id TEXT NOT NULL, UNIQUE(actor_id,client_id));
+    CREATE INDEX IF NOT EXISTS team_chat_history ON team_chat(session_id,team_id,phase,id);
+    CREATE TABLE IF NOT EXISTS participant_attendance(identity_id TEXT PRIMARY KEY REFERENCES identities(id) ON DELETE CASCADE, session_id TEXT NOT NULL REFERENCES sessions(id), confirmed_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS participant_notes(identity_id TEXT PRIMARY KEY REFERENCES identities(id), session_id TEXT NOT NULL REFERENCES sessions(id), content TEXT NOT NULL, version INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS participant_profiles(identity_id TEXT PRIMARY KEY REFERENCES identities(id), session_id TEXT NOT NULL REFERENCES sessions(id), team_id TEXT NOT NULL REFERENCES teams(id), full_name TEXT NOT NULL, email TEXT, team_role TEXT, UNIQUE(session_id,email), UNIQUE(team_id,team_role));
     CREATE TABLE IF NOT EXISTS team_reviews(session_id TEXT PRIMARY KEY REFERENCES sessions(id), data TEXT NOT NULL);
@@ -31,6 +34,8 @@ export function openStore(path, additionalSessions = []) {
     CREATE TABLE IF NOT EXISTS incident_assignments(session_id TEXT NOT NULL REFERENCES sessions(id), team_id TEXT NOT NULL REFERENCES teams(id), code TEXT NOT NULL, phase INTEGER NOT NULL, status TEXT NOT NULL, origin TEXT NOT NULL, assigned_at INTEGER NOT NULL, revealed_at INTEGER, response TEXT, resolved_at INTEGER, shared_at INTEGER, discussed_at INTEGER, PRIMARY KEY(session_id,team_id,code));
     CREATE TABLE IF NOT EXISTS incident_shares(session_id TEXT PRIMARY KEY REFERENCES sessions(id), data TEXT NOT NULL);
 `);
+  if (!db.prepare('PRAGMA table_info(team_chat)').all().some(column=>column.name==='reply_to')) db.exec('ALTER TABLE team_chat ADD COLUMN reply_to INTEGER REFERENCES team_chat(id) ON DELETE SET NULL');
+  db.exec('CREATE TABLE IF NOT EXISTS team_chat_likes(message_id INTEGER NOT NULL REFERENCES team_chat(id) ON DELETE CASCADE, actor_id TEXT NOT NULL REFERENCES identities(id) ON DELETE CASCADE, PRIMARY KEY(message_id,actor_id))');
   // Conserva los equipos históricos; el primer nombre equivalente se usa para nuevos ingresos.
   transaction(db, () => {
     const register = db.prepare('INSERT OR IGNORE INTO team_names VALUES (?,?,?)');
